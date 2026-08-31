@@ -18,8 +18,13 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="toggleBoardBtn" type="button" class="btn">Noteboard</button>
-        <button id="fitBtn" type="button" class="btn">Fit</button>
+        <span id="liveStatus" class="live-pill">Connecting…</span>
+        <button id="studentNotesBtn" type="button" class="btn compact hidden">My notes</button>
+        <button id="toggleBoardBtn" type="button" class="btn compact">Noteboard</button>
+        <button id="zoomOutBtn" type="button" class="btn compact" aria-label="Zoom out">−</button>
+        <button id="fitBtn" type="button" class="btn compact">Fit</button>
+        <button id="zoomInBtn" type="button" class="btn compact" aria-label="Zoom in">+</button>
+        <button id="exportBtn" type="button" class="btn compact">Export PDF</button>
       </div>
     </header>
 
@@ -30,91 +35,98 @@
     </section>
 
     <section id="workspace" class="workspace hidden">
-      <aside id="thumbRail" class="thumb-rail" aria-label="Page navigation">
-        <div class="page-jump">
-          <label for="pageInput">Page</label>
-          <input id="pageInput" type="number" min="1" value="1" inputmode="numeric">
-          <span id="pageCountLabel">/ 1</span>
+      <aside id="toolRail" class="tool-rail" aria-label="Annotation tools">
+        <div class="rail-section">
+          <span class="rail-title">TOOLS</span>
+          <button type="button" class="tool active" data-tool="pen">✏ Pen</button>
+          <button type="button" class="tool" data-tool="highlighter">▰ Highlight</button>
+          <button type="button" class="tool" data-tool="eraser">⌫ Erase</button>
+          <button type="button" class="tool" data-tool="text">T Text</button>
         </div>
-        <button id="prevBtn" type="button" class="btn compact">← Prev</button>
-        <button id="nextBtn" type="button" class="btn compact">Next →</button>
+
+        <div class="rail-section">
+          <label class="rail-label">Width
+            <input id="widthInput" type="range" min="1" max="16" value="4">
+          </label>
+          <label class="rail-label">Colour
+            <input id="colorInput" type="color" value="#1f2937">
+          </label>
+          <label class="switch-label">
+            <input id="fingerDrawToggle" type="checkbox">
+            <span>Finger draw</span>
+          </label>
+        </div>
+
+        <div class="rail-section">
+          <label class="rail-label">Write on
+            <select id="layerSelect"></select>
+          </label>
+          <label class="switch-label">
+            <input id="showShared" type="checkbox" checked>
+            <span>Class notes</span>
+          </label>
+          <label class="switch-label" id="showPrivateWrap">
+            <input id="showPrivate" type="checkbox" checked>
+            <span id="privateLabel">My notes</span>
+          </label>
+        </div>
+
+        <div class="rail-section">
+          <button id="undoBtn" type="button" class="btn compact">↶ Undo</button>
+          <button id="clearBtn" type="button" class="btn compact danger">Clear page</button>
+        </div>
       </aside>
 
-      <section class="content-grid">
-        <section class="pdf-panel" aria-label="Textbook">
-          <div class="toolbar" id="toolbar">
-            <div class="tool-group" role="group" aria-label="Drawing tools">
-              <button type="button" class="tool active" data-tool="pen">✏ Pen</button>
-              <button type="button" class="tool" data-tool="highlighter">▰ Highlight</button>
-              <button type="button" class="tool" data-tool="eraser">⌫ Erase</button>
-              <button type="button" class="tool" data-tool="text">T Text</button>
-            </div>
-            <div class="tool-group">
-              <label class="mini-label">Width
-                <input id="widthInput" type="range" min="1" max="16" value="4">
-              </label>
-              <label class="mini-label">Colour
-                <input id="colorInput" type="color" value="#1f2937">
-              </label>
-              <label class="switch-label">
-                <input id="fingerDrawToggle" type="checkbox">
-                <span>Finger draw</span>
-              </label>
-            </div>
-            <div class="tool-group" id="layerControls">
-              <label class="mini-label">Layer
-                <select id="layerSelect"></select>
-              </label>
-              <label class="switch-label">
-                <input id="showShared" type="checkbox" checked>
-                <span>Class notes</span>
-              </label>
-              <label class="switch-label" id="showPrivateWrap">
-                <input id="showPrivate" type="checkbox" checked>
-                <span id="privateLabel">My notes</span>
-              </label>
-            </div>
-            <div class="tool-group">
-              <button id="undoBtn" type="button" class="btn compact">↶ Undo</button>
-              <button id="clearBtn" type="button" class="btn compact danger">Clear layer</button>
-            </div>
-          </div>
+      <section class="pdf-panel" aria-label="Textbook">
+        <nav class="viewer-nav" aria-label="PDF page navigation">
+          <button id="prevBtn" type="button" class="btn compact">←</button>
+          <label class="page-jump" for="pageInput">Page
+            <input id="pageInput" type="number" min="1" value="1" inputmode="numeric">
+            <span id="pageCountLabel">/ 1</span>
+          </label>
+          <button id="nextBtn" type="button" class="btn compact">→</button>
+          <span id="zoomLabel" class="zoom-label">Fit</span>
+          <span id="saveStatus" class="save-status">Ready</span>
+        </nav>
 
-          <div id="canvasScroller" class="canvas-scroller">
-            <div id="canvasStack" class="canvas-stack">
-              <canvas id="pdfCanvas"></canvas>
-              <canvas id="annotationCanvas" aria-label="Annotation layer"></canvas>
-            </div>
+        <div id="canvasScroller" class="canvas-scroller">
+          <div id="canvasStack" class="canvas-stack">
+            <canvas id="pdfCanvas"></canvas>
+            <canvas id="annotationCanvas" aria-label="Annotation layer"></canvas>
           </div>
-        </section>
-
-        <aside id="boardPanel" class="board-panel">
-          <div class="board-head">
-            <div>
-              <strong>Linked Noteboard</strong>
-              <span id="boardSubtitle">Page 1</span>
-            </div>
-            <div class="board-actions">
-              <button id="prevBoardBtn" type="button" class="btn compact">←</button>
-              <span id="boardNoLabel">Board 1</span>
-              <button id="nextBoardBtn" type="button" class="btn compact">→</button>
-              <button id="newBoardBtn" type="button" class="btn compact">+ Board</button>
-            </div>
-          </div>
-          <div class="board-canvas-wrap">
-            <canvas id="boardCanvas" width="900" height="1200" aria-label="Noteboard"></canvas>
-          </div>
-        </aside>
+        </div>
       </section>
 
-      <footer class="statusbar">
-        <span id="saveStatus">Ready</span>
-        <span id="roleStatus"></span>
-      </footer>
+      <aside id="boardPanel" class="board-panel" aria-label="Linked noteboard">
+        <div class="board-head">
+          <div class="board-title-wrap">
+            <strong>Linked Noteboard</strong>
+            <span id="boardSubtitle">Textbook page 1</span>
+          </div>
+          <button id="closeBoardBtn" type="button" class="btn compact board-close" aria-label="Close noteboard">×</button>
+        </div>
+
+        <div class="board-controls">
+          <button id="prevBoardBtn" type="button" class="btn compact">←</button>
+          <span id="boardNoLabel">Board 1</span>
+          <button id="nextBoardBtn" type="button" class="btn compact">→</button>
+          <button id="newBoardBtn" type="button" class="btn compact">+ Board</button>
+        </div>
+
+        <label class="board-layer-label">Board layer
+          <select id="boardLayerSelect"></select>
+        </label>
+
+        <textarea id="boardText" class="board-text" spellcheck="true" placeholder="Type or paste lesson notes here…"></textarea>
+        <small id="boardSaveStatus" class="board-save-status">Ready</small>
+      </aside>
     </section>
   </main>
 
+  <!-- Stable PDF.js build for older student devices -->
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <!-- Used only when Export PDF is pressed -->
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
