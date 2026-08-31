@@ -1,8 +1,14 @@
 import { CONFIG } from './config.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+const pdfjsLib = window.pdfjsLib;
+
+if (!pdfjsLib) {
+  throw new Error('PDF viewer library failed to load.');
+}
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 const supabaseAuth = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_PUBLISHABLE_KEY);
 
@@ -133,7 +139,6 @@ function ingestInit(data) {
   els.roleStatus.textContent = data.viewer.role === 'teacher' ? 'Teacher view' : 'Student view';
   if (state.meta.role !== 'teacher') els.clearBtn.textContent = 'Clear my notes';
 }
-
 
 async function loadPageData(pageNo) {
   if (state.loadedPages.has(pageNo)) return;
@@ -285,6 +290,11 @@ function eraseNearest(strokes, p, radius=.035) {
   return false;
 }
 
+function cloneValue(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+
 function beginDraw(evt, kind) {
   if (kind === 'annotation' && evt.pointerType === 'touch' && !els.fingerDrawToggle.checked) return;
   const layer = activeLayer();
@@ -294,7 +304,7 @@ function beginDraw(evt, kind) {
   const list = kind === 'annotation' ? getStrokes(state.pageNo, layer) : getBoardStrokes(state.pageNo, state.boardNo, layer);
   if (state.tool === 'eraser') {
     if (eraseNearest(list, p)) {
-      state.history.push({kind, page:state.pageNo, board:state.boardNo, layer, snapshot: structuredClone(list)});
+      state.history.push({kind, page:state.pageNo, board:state.boardNo, layer, snapshot: cloneValue(list)});
       kind === 'annotation' ? drawAnnotations() : drawBoard();
       scheduleSave(kind, state.pageNo, state.boardNo, layer);
     }
@@ -320,7 +330,8 @@ function moveDraw(evt, kind) {
   if (!ps || ps.pointerId !== evt.pointerId) return;
   const canvas = kind === 'annotation' ? els.annotationCanvas : els.boardCanvas;
   const p = normPoint(evt, canvas);
-  const last = ps.stroke.points.at(-1);
+  const points = ps.stroke.points;
+  const last = points && points.length ? points[points.length - 1] : null;
   if (!last || Math.hypot(p.x-last.x,p.y-last.y) > .002) ps.stroke.points.push(p);
   kind === 'annotation' ? drawAnnotations() : drawBoard();
 }
