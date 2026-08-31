@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SNT PDF Board — Teacher</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div class="brand-row">
+        <div class="brand-mark">SNT</div>
+        <div class="brand-copy"><strong>SNT PDF Board</strong><span>Teacher control centre</span></div>
+      </div>
+      <button id="signOutBtn" class="btn hidden" type="button">Sign out</button>
+    </header>
+
+    <section id="adminMessage" class="admin-message hidden"></section>
+
+    <section id="loginCard" class="admin-card login-card">
+      <h1>Teacher sign in</h1>
+      <p>Use the teacher account you created in Supabase Authentication.</p>
+      <form id="loginForm">
+        <label>Email<input id="emailInput" type="email" required autocomplete="username"></label>
+        <label>Password<input id="passwordInput" type="password" required autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <section id="dashboard" class="dashboard hidden">
+      <div class="dashboard-grid">
+        <section class="admin-card">
+          <h2>1. Classes</h2>
+          <form id="classForm" class="inline-form">
+            <input id="classNameInput" placeholder="e.g. Grade 11 Class 1" required>
+            <button class="btn primary" type="submit">Add class</button>
+          </form>
+          <div id="classList" class="item-list"></div>
+        </section>
+
+        <section class="admin-card">
+          <h2>2. Textbooks</h2>
+          <p class="admin-help">Upload the original PDF once. It stays private in Supabase Storage and can be assigned to many classes.</p>
+          <form id="bookForm" class="stack-form">
+            <label>Title<input id="bookTitleInput" placeholder="Grade 11 Mathematics" required></label>
+            <label>PDF file<input id="bookFileInput" type="file" accept="application/pdf,.pdf" required></label>
+            <button id="bookUploadBtn" class="btn primary" type="submit">Upload textbook</button>
+            <small id="bookUploadStatus" class="upload-status">Free-plan default: up to 50 MB per PDF.</small>
+          </form>
+          <div id="storageSummary" class="storage-summary"></div>
+          <div id="bookList" class="item-list"></div>
+        </section>
+
+        <section class="admin-card">
+          <h2>3. Students</h2>
+          <form id="studentForm" class="stack-form">
+            <label>Name<input id="studentNameInput" placeholder="Student name" required></label>
+            <label>Class<select id="studentClassSelect" required></select></label>
+            <button class="btn primary" type="submit">Add student</button>
+          </form>
+          <div id="studentList" class="item-list"></div>
+        </section>
+
+        <section class="admin-card">
+          <h2>4. Assign book to class</h2>
+          <form id="assignForm" class="stack-form">
+            <label>Textbook<select id="assignBookSelect" required></select></label>
+            <label>Class<select id="assignClassSelect" required></select></label>
+            <button class="btn primary" type="submit">Assign</button>
+          </form>
+          <div id="assignmentList" class="item-list"></div>
+        </section>
+      </div>
+
+      <section class="admin-card link-card">
+        <h2>5. Direct links</h2>
+        <p>Create exactly the link the learner clicks in your existing system. It opens the correct book and class immediately.</p>
+        <div class="link-grid">
+          <form id="studentLinkForm" class="stack-form">
+            <h3>Student link</h3>
+            <label>Student<select id="linkStudentSelect" required></select></label>
+            <label>Textbook<select id="linkBookSelect" required></select></label>
+            <label>Expiry
+              <select id="linkExpirySelect">
+                <option value="0">No expiry</option>
+                <option value="30">30 days</option>
+                <option value="90" selected>90 days</option>
+                <option value="365">1 year</option>
+              </select>
+            </label>
+            <button class="btn primary" type="submit">Create student link</button>
+          </form>
+
+          <form id="teacherLinkForm" class="stack-form">
+            <h3>Teacher annotation link</h3>
+            <label>Class<select id="teacherClassSelect" required></select></label>
+            <label>Textbook<select id="teacherBookSelect" required></select></label>
+            <button class="btn primary" type="submit">Create teacher link</button>
+          </form>
+        </div>
+        <div id="generatedLinkPanel" class="generated-link hidden">
+          <strong>Generated link</strong>
+          <input id="generatedLinkInput" readonly>
+          <div class="link-actions">
+            <button id="copyLinkBtn" type="button" class="btn primary">Copy link</button>
+            <a id="openLinkBtn" class="btn" target="_blank" rel="noopener">Open link</a>
+          </div>
+          <small>Important: anyone with this exact link can use its access until you revoke it or it expires.</small>
+        </div>
+      </section>
+
+      <section class="admin-card">
+        <h2>Active links</h2>
+        <div id="linksList" class="item-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>SNT PDF Board</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app" class="app-shell" aria-live="polite">
+    <header class="topbar">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">SNT</div>
+        <div class="brand-copy">
+          <strong id="bookTitle">SNT PDF Board</strong>
+          <span id="contextLine">Opening secure textbook…</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="toggleBoardBtn" type="button" class="btn">Noteboard</button>
+        <button id="fitBtn" type="button" class="btn">Fit</button>
+      </div>
+    </header>
+
+    <section id="errorPanel" class="error-panel hidden" role="alert"></section>
+    <section id="loadingPanel" class="loading-panel">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loadingText">Checking your secure link…</p>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <aside id="thumbRail" class="thumb-rail" aria-label="Page navigation">
+        <div class="page-jump">
+          <label for="pageInput">Page</label>
+          <input id="pageInput" type="number" min="1" value="1" inputmode="numeric">
+          <span id="pageCountLabel">/ 1</span>
+        </div>
+        <button id="prevBtn" type="button" class="btn compact">← Prev</button>
+        <button id="nextBtn" type="button" class="btn compact">Next →</button>
+      </aside>
+
+      <section class="content-grid">
+        <section class="pdf-panel" aria-label="Textbook">
+          <div class="toolbar" id="toolbar">
+            <div class="tool-group" role="group" aria-label="Drawing tools">
+              <button type="button" class="tool active" data-tool="pen">✏ Pen</button>
+              <button type="button" class="tool" data-tool="highlighter">▰ Highlight</button>
+              <button type="button" class="tool" data-tool="eraser">⌫ Erase</button>
+              <button type="button" class="tool" data-tool="text">T Text</button>
+            </div>
+            <div class="tool-group">
+              <label class="mini-label">Width
+                <input id="widthInput" type="range" min="1" max="16" value="4">
+              </label>
+              <label class="mini-label">Colour
+                <input id="colorInput" type="color" value="#1f2937">
+              </label>
+              <label class="switch-label">
+                <input id="fingerDrawToggle" type="checkbox">
+                <span>Finger draw</span>
+              </label>
+            </div>
+            <div class="tool-group" id="layerControls">
+              <label class="mini-label">Layer
+                <select id="layerSelect"></select>
+              </label>
+              <label class="switch-label">
+                <input id="showShared" type="checkbox" checked>
+                <span>Class notes</span>
+              </label>
+              <label class="switch-label" id="showPrivateWrap">
+                <input id="showPrivate" type="checkbox" checked>
+                <span id="privateLabel">My notes</span>
+              </label>
+            </div>
+            <div class="tool-group">
+              <button id="undoBtn" type="button" class="btn compact">↶ Undo</button>
+              <button id="clearBtn" type="button" class="btn compact danger">Clear layer</button>
+            </div>
+          </div>
+
+          <div id="canvasScroller" class="canvas-scroller">
+            <div id="canvasStack" class="canvas-stack">
+              <canvas id="pdfCanvas"></canvas>
+              <canvas id="annotationCanvas" aria-label="Annotation layer"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <aside id="boardPanel" class="board-panel">
+          <div class="board-head">
+            <div>
+              <strong>Linked Noteboard</strong>
+              <span id="boardSubtitle">Page 1</span>
+            </div>
+            <div class="board-actions">
+              <button id="prevBoardBtn" type="button" class="btn compact">←</button>
+              <span id="boardNoLabel">Board 1</span>
+              <button id="nextBoardBtn" type="button" class="btn compact">→</button>
+              <button id="newBoardBtn" type="button" class="btn compact">+ Board</button>
+            </div>
+          </div>
+          <div class="board-canvas-wrap">
+            <canvas id="boardCanvas" width="900" height="1200" aria-label="Noteboard"></canvas>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="statusbar">
+        <span id="saveStatus">Ready</span>
+        <span id="roleStatus"></span>
+      </footer>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

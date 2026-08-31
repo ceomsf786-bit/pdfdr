@@ -1,0 +1,15 @@
+# Run these from inside the SNT PDF Board folder.
+# Replace YOUR_PROJECT_REF with the short project reference from your Supabase URL/dashboard.
+
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase functions deploy viewer-api --no-verify-jwt
+
+# Then push the web files to GitHub as normal, for example:
+
+git init
+git add .
+git commit -m "SNT PDF Board Supabase Storage v2"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+git push -u origin main
