@@ -1,13 +1,132 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><title>SNT PDF Annotator — Teacher</title><link rel="stylesheet" href="viewer.css"></head>
-<body data-mode="teacher"><main id="app">
-<header class="topbar"><div class="brand"><span class="logo">SNT</span><div><strong id="docTitle">SNT PDF Annotator</strong><small id="contextText">Teacher</small></div></div><div class="top-actions"><button id="libraryBtn" class="btn compact">Library</button><button id="copyStudentLink" class="btn compact">Copy student link</button><button id="exportPdf" class="btn compact">Export PDF</button><button id="toggleBoard" class="btn compact">Notepad</button><button id="signOutBtn" class="btn compact">Sign out</button></div></header>
-<section id="loginPanel" class="login-panel hidden"><form id="loginForm" class="login-card"><h2>Teacher sign in</h2><label>Email<input id="emailInput" type="email" required autocomplete="username"></label><label>Password<input id="passwordInput" type="password" required autocomplete="current-password"></label><button class="btn primary" type="submit">Sign in</button><small>Use your existing Supabase account.</small></form></section>
-<section id="loading" class="center-message">Loading…</section><section id="error" class="error hidden"></section>
-<section id="workspace" class="workspace teacher-workspace hidden">
-<aside class="tool-rail" aria-label="Annotation tools"><button class="tool active" data-tool="pen">✎<span>Pen</span></button><button class="tool" data-tool="highlighter">▰<span>Highlight</span></button><button class="tool" data-tool="eraser">⌫<span>Erase</span></button><button class="tool" data-tool="select">⌖<span>Select</span></button><button class="tool" data-tool="text">T<span>Text</span></button><button class="tool" data-tool="line">╱<span>Line</span></button><button class="tool" data-tool="arrow">➜<span>Arrow</span></button><button class="tool" data-tool="rect">□<span>Box</span></button><button class="tool" data-tool="ellipse">○<span>Circle</span></button><button class="tool" data-tool="hand">✋<span>Pan</span></button><div class="rail-divider"></div><label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label><label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label><button id="undoBtn" class="tool">↶<span>Undo</span></button><button id="redoBtn" class="tool">↷<span>Redo</span></button><button id="deleteSelected" class="tool danger">×<span>Delete</span></button></aside>
-<section class="pdf-area"><div class="pdf-controls"><button id="prevPage" class="btn compact">← Prev</button><label class="page-box">Page <input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label><button id="nextPage" class="btn compact">Next →</button><span class="spacer"></span><button id="zoomOut" class="btn compact">−</button><button id="fitPage" class="btn compact">Fit width</button><button id="zoomIn" class="btn compact">+</button></div><div id="pdfScroller" class="pdf-scroller"><div id="canvasWrap" class="canvas-wrap"><canvas id="pdfCanvas"></canvas><canvas id="overlayCanvas"></canvas></div></div></section>
-<aside id="boardPanel" class="board-panel teacher-board"><div class="board-head"><div><strong>Linked Notepad</strong><small id="boardLabel">Board 1</small></div><div class="board-nav"><button id="boardPrev" class="btn compact">←</button><button id="boardNext" class="btn compact">→</button><button id="boardAdd" class="btn compact">+ Board</button></div></div><textarea id="boardText" class="board-text" placeholder="Type or paste teacher notes here…"></textarea><div class="board-canvas-wrap"><canvas id="boardCanvas" width="900" height="1100"></canvas></div></aside></section>
-<footer class="statusbar"><span id="statusText">Ready</span><span id="liveText">Autosave on</span></footer>
-<dialog id="libraryDialog" class="library-dialog"><form method="dialog" class="dialog-head"><strong>PDF Library</strong><button class="btn compact">Close</button></form><section class="create-doc"><h3>Add Google Drive PDF</h3><label>Title<input id="newTitle" placeholder="e.g. Grade 6 Term 3 Maths"></label><label>Google Drive PDF link<input id="newDriveUrl" placeholder="https://drive.google.com/file/d/.../view"></label><button id="createDocBtn" class="btn primary" type="button">Add PDF</button><small>Drive sharing must be: Anyone with the link → Viewer.</small></section><div id="libraryList" class="library-list"></div></dialog>
-</main><script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script><script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script><script type="module" src="viewer.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>SNT PDF Annotator — Teacher</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body data-mode="teacher">
+  <main id="app">
+    <header class="topbar">
+      <div class="brand"><span class="logo">SNT</span><div><strong id="docTitle">SNT PDF Annotator</strong><small id="contextText">Teacher</small></div></div>
+      <div class="top-actions">
+        <button id="libraryBtn" class="btn compact">Library</button>
+        <button id="copyStudentLink" class="btn compact">Copy student link</button>
+        <button id="exportPdf" class="btn compact">Export PDF</button>
+        <button id="fullscreenBtn" class="btn compact">Full screen</button>
+        <button id="focusPdfBtn" class="btn compact">PDF focus</button>
+        <button id="resetLayoutBtn" class="btn compact">Reset layout</button>
+        <button id="toggleBoard" class="btn compact">Notepad</button>
+        <button id="signOutBtn" class="btn compact">Sign out</button>
+      </div>
+    </header>
+
+    <section id="loginPanel" class="login-panel hidden">
+      <form id="loginForm" class="login-card">
+        <h2>Teacher sign in</h2>
+        <label>Email<input id="emailInput" type="email" required autocomplete="username"></label>
+        <label>Password<input id="passwordInput" type="password" required autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Sign in</button>
+        <small>Use your existing Supabase teacher account.</small>
+      </form>
+    </section>
+
+    <section id="loading" class="center-message">Loading…</section>
+    <section id="error" class="error hidden"></section>
+
+    <section id="workspace" class="workspace teacher-workspace hidden">
+      <aside id="toolRail" class="tool-rail" aria-label="Annotation tools">
+        <button class="tool active" data-tool="pen">✎<span>Pen</span></button>
+        <button class="tool" data-tool="highlighter">▰<span>Highlight</span></button>
+        <button class="tool" data-tool="eraser">⌫<span>Erase</span></button>
+        <button class="tool" data-tool="select">⌖<span>Select</span></button>
+        <button class="tool" data-tool="text">T<span>Text</span></button>
+        <button class="tool" data-tool="line">╱<span>Line</span></button>
+        <button class="tool" data-tool="arrow">➜<span>Arrow</span></button>
+        <button class="tool" data-tool="rect">□<span>Box</span></button>
+        <button class="tool" data-tool="ellipse">○<span>Circle</span></button>
+        <button class="tool" data-tool="hand">✋<span>Pan</span></button>
+        <div class="rail-divider"></div>
+        <label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label>
+        <label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label>
+        <button id="undoBtn" class="tool">↶<span>Undo</span></button>
+        <button id="redoBtn" class="tool">↷<span>Redo</span></button>
+        <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
+      </aside>
+
+      <div id="toolSplit" class="splitter vertical-splitter" title="Drag to resize toolbar"></div>
+
+      <section class="pdf-area">
+        <div class="pdf-controls">
+          <button id="prevPage" class="btn compact">← Prev</button>
+          <label class="page-box">Page <input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label>
+          <button id="nextPage" class="btn compact">Next →</button>
+          <span class="spacer"></span>
+          <button id="zoomOut" class="btn compact">−</button>
+          <button id="fitPage" class="btn compact">Fit width</button>
+          <button id="zoomIn" class="btn compact">+</button>
+        </div>
+        <div id="pdfScroller" class="pdf-scroller">
+          <div id="canvasWrap" class="canvas-wrap">
+            <canvas id="pdfCanvas"></canvas>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <div id="noteSplit" class="splitter vertical-splitter" title="Drag to resize notepad"></div>
+
+      <aside id="boardPanel" class="board-panel teacher-board open">
+        <div class="board-head">
+          <div class="board-title-edit">
+            <input id="boardTitleInput" value="Board 1" maxlength="80" aria-label="Board name">
+            <small id="boardLabel">Board 1</small>
+          </div>
+          <div class="board-nav">
+            <button id="boardPrev" class="btn compact">←</button>
+            <button id="boardNext" class="btn compact">→</button>
+            <button id="boardAdd" class="btn compact">+ Board</button>
+            <button id="boardDelete" class="btn compact danger-text">Delete</button>
+          </div>
+        </div>
+        <textarea id="boardText" class="board-text" placeholder="Type or paste teacher notes here…"></textarea>
+        <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
+        <section id="imageSection" class="image-section teacher-images" tabindex="0">
+          <div class="image-toolbar">
+            <strong>Pasted images</strong>
+            <span id="imageCounter">0 / 0</span>
+            <button id="imagePrev" class="btn compact">←</button>
+            <button id="imageNext" class="btn compact">→</button>
+            <button id="pasteImageBtn" class="btn compact">Choose image</button>
+            <button id="deleteImageBtn" class="btn compact danger-text">Delete image</button>
+            <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </div>
+          <div id="imageStage" class="image-stage paste-stage">
+            <span>Paste an image here with Ctrl+V, or choose an image. Images stay with this named board regardless of PDF page.</span>
+            <img id="boardImage" class="hidden" alt="Pasted notepad image">
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="statusbar"><span id="statusText">Ready</span><span id="liveText">Teacher live</span></footer>
+
+    <dialog id="libraryDialog" class="library-dialog">
+      <form method="dialog" class="dialog-head"><strong>PDF Library</strong><button class="btn compact">Close</button></form>
+      <section class="create-doc">
+        <h3>Add Google Drive PDF</h3>
+        <label>Title<input id="newTitle" placeholder="e.g. Grade 6 Term 3 Maths"></label>
+        <label>Google Drive PDF link<input id="newDriveUrl" placeholder="https://drive.google.com/file/d/.../view"></label>
+        <button id="createDocBtn" class="btn primary" type="button">Add PDF</button>
+        <small>Drive sharing must be: Anyone with the link → Viewer.</small>
+      </section>
+      <div id="libraryList" class="library-list"></div>
+    </dialog>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>

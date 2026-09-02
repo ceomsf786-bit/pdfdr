@@ -1,8 +1,69 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><title>SNT PDF Viewer</title><link rel="stylesheet" href="viewer.css"></head>
-<body data-mode="student"><main id="app">
-<header class="topbar student-topbar"><div class="brand"><span class="logo">SNT</span><div><strong id="docTitle">SNT PDF</strong><small id="contextText">Opening textbook…</small></div></div><div class="top-actions"><button id="prevPage" class="btn compact">←</button><label class="page-box"><input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label><button id="nextPage" class="btn compact">→</button><button id="zoomOut" class="btn compact">−</button><button id="fitPage" class="btn compact">Fit</button><button id="zoomIn" class="btn compact">+</button><button id="toggleBoard" class="btn compact">Notes</button></div></header>
-<section id="loading" class="center-message">Opening secure textbook…</section><section id="error" class="error hidden"></section>
-<section id="workspace" class="workspace hidden"><section class="pdf-area"><div id="pdfScroller" class="pdf-scroller"><div id="canvasWrap" class="canvas-wrap"><canvas id="pdfCanvas"></canvas><canvas id="overlayCanvas"></canvas></div></div></section><aside id="boardPanel" class="board-panel"><div class="board-head"><div><strong>Teacher Notepad</strong><small id="boardLabel">Board 1</small></div><div class="board-nav"><button id="boardPrev" class="btn compact">←</button><button id="boardNext" class="btn compact">→</button></div></div><textarea id="boardText" class="board-text" readonly placeholder="Teacher notes will appear here."></textarea><div class="board-canvas-wrap"><canvas id="boardCanvas" width="900" height="1100"></canvas></div></aside></section>
-<footer class="statusbar"><span id="statusText">View only</span><span id="liveText">Live</span></footer>
-</main><script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script><script type="module" src="viewer.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>SNT PDF Viewer</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body data-mode="student">
+  <main id="app">
+    <header class="topbar student-topbar">
+      <div class="brand">
+        <span class="logo">SNT</span>
+        <div><strong id="docTitle">SNT PDF</strong><small id="contextText">Opening textbook…</small></div>
+      </div>
+      <div class="top-actions">
+        <button id="prevPage" class="btn compact">←</button>
+        <label class="page-box"><input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label>
+        <button id="nextPage" class="btn compact">→</button>
+        <button id="zoomOut" class="btn compact">−</button>
+        <button id="fitPage" class="btn compact">Fit</button>
+        <button id="zoomIn" class="btn compact">+</button>
+        <button id="toggleBoard" class="btn compact">Notes</button>
+      </div>
+    </header>
+
+    <section id="loading" class="center-message">Opening secure textbook…</section>
+    <section id="error" class="error hidden"></section>
+
+    <section id="workspace" class="workspace student-workspace hidden">
+      <section class="pdf-area">
+        <div id="pdfScroller" class="pdf-scroller">
+          <div id="canvasWrap" class="canvas-wrap">
+            <canvas id="pdfCanvas"></canvas>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <div id="studentSplit" class="splitter horizontal-splitter" title="Drag to resize PDF and notes"></div>
+
+      <aside id="boardPanel" class="board-panel student-board open">
+        <div class="board-head">
+          <div><strong id="boardTitleDisplay">Teacher Notepad</strong><small id="boardLabel">Board 1</small></div>
+          <div class="board-nav">
+            <button id="boardPrev" class="btn compact">←</button>
+            <button id="boardNext" class="btn compact">→</button>
+          </div>
+        </div>
+        <textarea id="boardText" class="board-text" readonly placeholder="Teacher notes will appear here."></textarea>
+        <section class="image-section">
+          <div class="image-toolbar">
+            <strong>Images</strong>
+            <span id="imageCounter">0 / 0</span>
+            <button id="imagePrev" class="btn compact">←</button>
+            <button id="imageNext" class="btn compact">→</button>
+          </div>
+          <div id="imageStage" class="image-stage"><span>No pasted image on this board.</span><img id="boardImage" class="hidden" alt="Teacher pasted note"></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="statusbar"><span id="statusText">View only</span><span id="liveText">Live</span></footer>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
