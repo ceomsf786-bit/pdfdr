@@ -14,9 +14,9 @@ const els = {
   loading:$('loading'), error:$('error'), workspace:$('workspace'), docTitle:$('docTitle'), contextText:$('contextText'),
   pdfScroller:$('pdfScroller'), canvasWrap:$('canvasWrap'), pdfCanvas:$('pdfCanvas'), overlayCanvas:$('overlayCanvas'),
   prevPage:$('prevPage'), nextPage:$('nextPage'), pageInput:$('pageInput'), pageCount:$('pageCount'), zoomOut:$('zoomOut'), zoomIn:$('zoomIn'), fitPage:$('fitPage'),
-  boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'),
+  boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardScopeLabel:$('boardScopeLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'),
   boardPrev:$('boardPrev'), boardNext:$('boardNext'), boardAdd:$('boardAdd'), boardDelete:$('boardDelete'),
-  imageSection:$('imageSection'), imageStage:$('imageStage'), boardImage:$('boardImage'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
+  imageSection:$('imageSection'), imageStage:$('imageStage'), boardImage:$('boardImage'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
   statusText:$('statusText'), liveText:$('liveText'),
   toolRail:$('toolRail'), toolButtons:[...document.querySelectorAll('[data-tool]')], widthInput:$('widthInput'), colorInput:$('colorInput'), undoBtn:$('undoBtn'), redoBtn:$('redoBtn'), deleteSelected:$('deleteSelected'),
   toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'),
@@ -30,7 +30,7 @@ const state = {
   pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), revision:0,
   tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
-  boardOpen:true, teacherOnline:false, followTeacher:true, liveImageId:null, liveScrollRatio:0, scrollSyncTimer:null
+  boardOpen:true, teacherOnline:false, followTeacher:true, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:1, pinch:null, scrollSyncTimer:null
 };
 
 function showError(message){
@@ -180,38 +180,72 @@ async function loadTeacherPageData(force=false){
 async function loadStudentPageData(){const p=await api('page',{page:state.pageNo});state.pageObjects=Array.isArray(p.objects)?p.objects:[];drawOverlay();}
 
 function boardByNo(no=state.boardNo){return state.boards.find(b=>Number(b.board_no)===Number(no));}
-async function loadTeacherBoards(){
-  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
-  state.boards=data||[];
-  if(!state.boards.length){const {error:e}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:1,title:'General notes',text_content:'',objects:[]});if(e)throw e;state.boards=[{board_no:1,title:'General notes',text_content:''}];}
-  if(!boardByNo())state.boardNo=state.boards[0].board_no;loadBoardText();await loadImages();
+function boardIsPermanent(b=boardByNo()){return !!b?.is_permanent;}
+function boardAppliesToPage(b,page=state.pageNo){return !!b && (b.is_permanent===true || (b.board_scope==='page' && Number(b.page_no)===Number(page)));}
+function firstPermanentBoard(){return state.boards.find(b=>b.is_permanent===true)||state.boards[0]||null;}
+function ensureApplicableBoard(){
+  if(boardAppliesToPage(boardByNo()))return;
+  const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;
 }
-async function loadStudentBoards(){const r=await api('boards');state.boards=r.boards||[];if(!state.boards.length)state.boards=[{board_no:1,title:'Teacher notes',text_content:''}];if(!boardByNo())state.boardNo=state.boards[0].board_no;loadBoardText();await loadImages();}
+async function ensurePermanentBoard(){
+  if(!TEACHER||!state.doc)return;
+  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
+  const existing=(data||[]).find(b=>b.is_permanent===true);
+  if(existing)return;
+  const next=Math.max(0,...(data||[]).map(x=>Number(x.board_no)))+1;
+  const {error:e}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});if(e)throw e;
+}
+async function loadTeacherBoards(){
+  await ensurePermanentBoard();
+  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
+  state.boards=(data||[]).filter(b=>boardAppliesToPage(b,state.pageNo));
+  ensureApplicableBoard();loadBoardText();await loadImages();
+}
+async function loadStudentBoards(){
+  const r=await api('boards',{page:state.pageNo});state.boards=r.boards||[];
+  if(!state.boards.length)state.boards=[{board_no:1,title:'Teacher notes',text_content:'',board_scope:'global',page_no:1,is_permanent:true}];
+  ensureApplicableBoard();loadBoardText();await loadImages();
+}
 function loadBoardText(){
-  const b=boardByNo()||{board_no:state.boardNo,title:`Board ${state.boardNo}`,text_content:''};
-  if(els.boardText)els.boardText.value=b.text_content||'';if(els.boardTitleInput)els.boardTitleInput.value=b.title||`Board ${state.boardNo}`;if(els.boardTitleDisplay)els.boardTitleDisplay.textContent=b.title||'Teacher Notepad';if(els.boardLabel)els.boardLabel.textContent=`Board ${b.board_no}`;
-  const arr=state.boards.map(x=>Number(x.board_no)).sort((a,b)=>a-b),i=arr.indexOf(Number(state.boardNo));if(els.boardPrev)els.boardPrev.disabled=i<=0;if(els.boardNext)els.boardNext.disabled=i<0||i>=arr.length-1;
+  const b=boardByNo()||firstPermanentBoard()||{board_no:state.boardNo,title:`Board ${state.boardNo}`,text_content:'',board_scope:'global',is_permanent:true};
+  state.boardNo=Number(b.board_no||1);
+  if(els.boardText)els.boardText.value=b.text_content||'';
+  if(els.boardTitleInput)els.boardTitleInput.value=b.title||`Board ${state.boardNo}`;
+  if(els.boardTitleDisplay)els.boardTitleDisplay.textContent=b.title||'Teacher Notepad';
+  if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':`PDF page ${b.page_no||state.pageNo}`;
+  if(els.boardScopeLabel){els.boardScopeLabel.textContent=b.is_permanent?'Permanent':`Page ${b.page_no||state.pageNo}`;els.boardScopeLabel.classList.toggle('page-scope',!b.is_permanent);}
+  if(els.boardDelete){els.boardDelete.disabled=!!b.is_permanent;els.boardDelete.title=b.is_permanent?'The permanent board cannot be deleted.':'Delete this page board';}
+  const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo));if(els.boardPrev)els.boardPrev.disabled=i<=0;if(els.boardNext)els.boardNext.disabled=i<0||i>=arr.length-1;
 }
 async function saveBoardNow(){
-  if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=els.boardText?.value||'';
-  const {error}=await supabase.from('snt_pdf_boards').upsert({document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],updated_at:new Date().toISOString()},{onConflict:'document_id,board_no'});if(error){setStatus(error.message);return;}
+  if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
+  const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=els.boardText?.value||'';
+  const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:b.is_permanent?'global':'page',page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
+  const {error}=await supabase.from('snt_pdf_boards').upsert(row,{onConflict:'document_id,page_no,board_no'});if(error){setStatus('Notepad save failed: '+error.message);return;}
   b.title=title;b.text_content=text;setStatus('Notepad saved');
 }
-function saveBoardSoon(){clearTimeout(state.boardTextTimer);state.boardTextTimer=setTimeout(()=>saveBoardNow().catch(e=>setStatus(e.message)),220);}
+function saveBoardSoon(){clearTimeout(state.boardTextTimer);state.boardTextTimer=setTimeout(()=>saveBoardNow().catch(e=>setStatus(e.message)),180);}
 async function addBoard(){
-  const next=Math.max(0,...state.boards.map(x=>Number(x.board_no)))+1;const title=`Board ${next}`;const {error}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title,text_content:'',objects:[]});if(error)return setStatus(error.message);state.boardNo=next;await loadTeacherBoards();await pushLiveState();
+  if(!TEACHER||!state.doc)return;setStatus('Adding page board…');
+  const {data:all,error:readError}=await supabase.from('snt_pdf_boards').select('board_no').eq('document_id',state.doc.id).order('board_no');if(readError)return setStatus(readError.message);
+  const next=Math.max(0,...(all||[]).map(x=>Number(x.board_no)))+1,title=`Page ${state.pageNo} board`;
+  const {data,error}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title,text_content:'',objects:[],board_scope:'page',page_no:state.pageNo,is_permanent:false}).select('board_no').single();
+  if(error)return setStatus('Could not add board: '+error.message);
+  state.boardNo=Number(data.board_no);await loadTeacherBoards();state.boardNo=Number(data.board_no);loadBoardText();await loadImages();await pushLiveState();setStatus('Page board added');
 }
 async function deleteBoard(){
-  if(state.boards.length<=1)return setStatus('Keep at least one board.');const b=boardByNo();if(!confirm(`Delete “${b?.title||'this board'}” and its pasted images?`))return;
-  for(const image of [...state.images]){
-    const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});
-    if(!r.ok){const d=await r.json().catch(()=>({}));return setStatus(d.error||'Could not delete board image.');}
-  }
-  const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',state.boardNo);if(error)return setStatus(error.message);
-  state.boardNo=state.boards.find(x=>x.board_no!==b.board_no)?.board_no||1;state.liveImageId=null;await loadTeacherBoards();await pushLiveState();
+  if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
+  if(b.is_permanent)return setStatus('The permanent board cannot be deleted.');
+  if(!confirm(`Delete “${b.title||'this page board'}” and its pasted images?`))return;
+  setStatus('Deleting board…');
+  const {data:imgs,error:imgRead}=await supabase.from('snt_pdf_board_images').select('id,storage_path').eq('document_id',state.doc.id).eq('board_no',b.board_no);if(imgRead)return setStatus(imgRead.message);
+  for(const image of imgs||[]){const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});if(!r.ok){const d=await r.json().catch(()=>({}));return setStatus(d.error||'Could not delete a board image.');}}
+  const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',b.board_no);if(error)return setStatus('Could not delete board: '+error.message);
+  state.liveImageId=null;await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await loadImages();await pushLiveState();setStatus('Board deleted');
 }
 async function moveBoard(delta){
-  const arr=state.boards.map(x=>Number(x.board_no)).sort((a,b)=>a-b),i=arr.indexOf(Number(state.boardNo)),n=i+delta;if(n<0||n>=arr.length)return;state.boardNo=arr[n];loadBoardText();await loadImages();if(TEACHER)await pushLiveState();else persistStudentState();
+  const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo)),n=i+delta;if(n<0||n>=arr.length)return;
+  state.boardNo=arr[n];state.imageZoom=1;loadBoardText();await loadImages();if(TEACHER)await pushLiveState();else persistStudentState();
 }
 
 async function loadImages(){
@@ -228,10 +262,21 @@ async function fetchImageBlobUrl(image){
 }
 async function showCurrentImage(){
   const count=state.images.length;if(els.imageCounter)els.imageCounter.textContent=count?`${state.imageIndex+1} / ${count}`:'0 / 0';if(els.imagePrev)els.imagePrev.disabled=!count||state.imageIndex<=0;if(els.imageNext)els.imageNext.disabled=!count||state.imageIndex>=count-1;if(els.deleteImageBtn)els.deleteImageBtn.disabled=!count;
-  if(!count){els.boardImage?.classList.add('hidden');if(els.imageStage){const span=els.imageStage.querySelector('span');if(span)span.classList.remove('hidden');}state.liveImageId=null;return;}
-  const image=state.images[state.imageIndex];try{const url=await fetchImageBlobUrl(image);els.boardImage.src=url;els.boardImage.alt=image.image_name||'Teacher pasted image';els.boardImage.classList.remove('hidden');const span=els.imageStage?.querySelector('span');if(span)span.classList.add('hidden');state.liveImageId=image.id;if(TEACHER)await pushLiveState();persistStudentState();}catch(e){setStatus(e.message);}
+  if(!count){els.boardImage?.classList.add('hidden');if(els.imageStage){const span=els.imageStage.querySelector('span');if(span)span.classList.remove('hidden');}state.liveImageId=null;applyImageZoom();return;}
+  const image=state.images[state.imageIndex];try{const url=await fetchImageBlobUrl(image);els.boardImage.src=url;els.boardImage.alt=image.image_name||'Teacher pasted image';els.boardImage.classList.remove('hidden');const span=els.imageStage?.querySelector('span');if(span)span.classList.add('hidden');state.liveImageId=image.id;applyImageZoom();if(TEACHER)await pushLiveState();persistStudentState();}catch(e){setStatus(e.message);}
 }
-async function moveImage(delta){if(!state.images.length)return;const n=state.imageIndex+delta;if(n<0||n>=state.images.length)return;state.imageIndex=n;await showCurrentImage();}
+function applyImageZoom(){
+  const z=Math.max(.25,Math.min(4,Number(state.imageZoom||1)));state.imageZoom=z;
+  if(els.boardImage){
+    if(TEACHER){els.boardImage.style.transform='none';els.boardImage.style.maxWidth='none';els.boardImage.style.maxHeight='none';els.boardImage.style.width=`${Math.round(z*100)}%`;els.boardImage.style.height='auto';}
+    else{els.boardImage.style.transform='';els.boardImage.style.width='';els.boardImage.style.height='';els.boardImage.style.maxWidth='100%';els.boardImage.style.maxHeight='100%';}
+  }
+  if(els.imageZoomReset)els.imageZoomReset.textContent=`${Math.round(z*100)}%`;
+}
+function changeImageZoom(delta){state.imageZoom=Math.max(.25,Math.min(4,state.imageZoom+delta));applyImageZoom();}
+function resetImageZoom(){state.imageZoom=1;applyImageZoom();}
+
+async function moveImage(delta){if(!state.images.length)return;const n=state.imageIndex+delta;if(n<0||n>=state.images.length)return;state.imageIndex=n;state.imageZoom=1;await showCurrentImage();}
 async function uploadImage(file){
   if(!TEACHER||!file)return;if(file.size>8*1024*1024)return setStatus('Image must be under 8 MB.');if(!/^image\//.test(file.type))return setStatus('Choose an image file.');setStatus('Uploading image…');
   const r=await fetch(apiUrl('upload-image',{board:state.boardNo}),{method:'POST',headers:authHeaders({'Content-Type':file.type,'x-file-name':encodeURIComponent(file.name||'Pasted image')}),body:file});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Image upload failed.');await loadImages();state.imageIndex=Math.max(0,state.images.length-1);await showCurrentImage();setStatus('Image saved');
@@ -240,26 +285,41 @@ async function deleteCurrentImage(){
   if(!TEACHER||!state.images.length)return;const image=state.images[state.imageIndex];if(!confirm('Delete this pasted image?'))return;const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Delete failed.');const old=state.imageBlobUrls.get(image.id);if(old)URL.revokeObjectURL(old);state.imageBlobUrls.delete(image.id);state.imageIndex=Math.max(0,state.imageIndex-1);await loadImages();setStatus('Image deleted');
 }
 async function pushLiveState(){
-  if(!TEACHER||!state.doc)return;
-  const maxScroll=Math.max(1,els.pdfScroller.scrollHeight-els.pdfScroller.clientHeight),scrollRatio=Math.max(0,Math.min(1,els.pdfScroller.scrollTop/maxScroll));state.liveScrollRatio=scrollRatio;
-  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:scrollRatio,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
+  if(!TEACHER||!state.doc||!state.pdf)return;
+  const maxX=Math.max(0,els.pdfScroller.scrollWidth-els.pdfScroller.clientWidth),maxY=Math.max(0,els.pdfScroller.scrollHeight-els.pdfScroller.clientHeight);
+  const centerX=maxX>0?Math.max(0,Math.min(1,(els.pdfScroller.scrollLeft+els.pdfScroller.clientWidth/2)/Math.max(1,els.pdfScroller.scrollWidth))):0.5;
+  const centerY=maxY>0?Math.max(0,Math.min(1,(els.pdfScroller.scrollTop+els.pdfScroller.clientHeight/2)/Math.max(1,els.pdfScroller.scrollHeight))):0.5;
+  const scrollRatio=maxY>0?Math.max(0,Math.min(1,els.pdfScroller.scrollTop/maxY)):0;
+  state.liveScrollRatio=scrollRatio;state.liveCenterX=centerX;state.liveCenterY=centerY;state.liveZoom=state.scale;
+  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:scrollRatio,live_center_x:centerX,live_center_y:centerY,live_zoom:state.scale,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
+}
+function applyTeacherCenter(){
+  if(TEACHER||!state.teacherOnline||!state.pdf)return;
+  const fullW=els.pdfScroller.scrollWidth,fullH=els.pdfScroller.scrollHeight;
+  const left=Math.max(0,Math.min(Math.max(0,fullW-els.pdfScroller.clientWidth),state.liveCenterX*fullW-els.pdfScroller.clientWidth/2));
+  const top=Math.max(0,Math.min(Math.max(0,fullH-els.pdfScroller.clientHeight),state.liveCenterY*fullH-els.pdfScroller.clientHeight/2));
+  els.pdfScroller.scrollLeft=left;els.pdfScroller.scrollTop=top;
 }
 function teacherHeartbeat(){if(!TEACHER||!state.doc)return;pushLiveState().catch(()=>{});}
 async function pollStudentSync(){
   if(TEACHER||!state.doc)return;
   try{
-    const s=await api('sync');const wasOnline=state.teacherOnline,previousLiveImage=state.liveImageId,newRevision=Number(s.revision||0),revisionChanged=newRevision!==state.revision;state.teacherOnline=!!s.teacher_online;state.liveImageId=s.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(s.live_scroll_ratio||0)));
+    const s=await api('sync'),wasOnline=state.teacherOnline,previousLiveImage=state.liveImageId,newRevision=Number(s.revision||0),revisionChanged=newRevision!==state.revision;
+    state.teacherOnline=!!s.teacher_online;state.liveImageId=s.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(s.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(s.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(s.live_center_y??.5)));state.liveZoom=Math.max(.25,Math.min(5,Number(s.live_zoom||1)));
+    document.body.classList.toggle('student-following',state.teacherOnline);
     if(els.liveText){els.liveText.textContent=state.teacherOnline?'Following teacher':'View mode';els.liveText.classList.toggle('following',state.teacherOnline);}
     if(els.prevPage)els.prevPage.disabled=state.teacherOnline||state.pageNo<=1;if(els.nextPage)els.nextPage.disabled=state.teacherOnline||state.pageNo>=state.pdf.numPages;if(els.pageInput)els.pageInput.disabled=state.teacherOnline;
     if(state.teacherOnline){
       const targetPage=Math.max(1,Number(s.live_page||1)),targetBoard=Math.max(1,Number(s.live_board_no||1));
-      if(targetPage!==state.pageNo){await renderPage(targetPage,true);}else if(revisionChanged){await loadStudentPageData();await loadStudentBoards();}
-      if(targetBoard!==state.boardNo){state.boardNo=targetBoard;loadBoardText();await loadImages();}
+      if(targetPage!==state.pageNo){await renderPage(targetPage,true);}
+      else if(revisionChanged){await loadStudentPageData();await loadStudentBoards();}
+      if(!state.boards.some(b=>Number(b.board_no)===targetBoard))await loadStudentBoards();
+      if(state.boards.some(b=>Number(b.board_no)===targetBoard) && targetBoard!==state.boardNo){state.boardNo=targetBoard;state.imageZoom=1;loadBoardText();await loadImages();}
       else if((s.live_image_id||null)!==(previousLiveImage||null)){await loadImages();}
-      const maxScroll=Math.max(0,els.pdfScroller.scrollHeight-els.pdfScroller.clientHeight);if(maxScroll>0){const target=Math.round(state.liveScrollRatio*maxScroll);if(Math.abs(els.pdfScroller.scrollTop-target)>8)els.pdfScroller.scrollTop=target;}
+      requestAnimationFrame(()=>applyTeacherCenter());
     }else if(revisionChanged){await loadStudentPageData();await loadStudentBoards();}
     state.revision=newRevision;
-    if(!wasOnline&&state.teacherOnline)setStatus('Teacher is live — following their page');else if(wasOnline&&!state.teacherOnline)setStatus('Teacher offline — you can browse freely');
+    if(!wasOnline&&state.teacherOnline)setStatus('Teacher is live — page and position are locked to teacher');else if(wasOnline&&!state.teacherOnline)setStatus('Teacher offline — you can browse freely');
   }catch{}
 }
 
@@ -281,12 +341,24 @@ async function renderPage(n,forceData=false){
     els.canvasWrap.style.width=`${viewport.width}px`;els.canvasWrap.style.height=`${viewport.height}px`;
     const ctx=els.pdfCanvas.getContext('2d',{alpha:false});await page.render({canvasContext:ctx,viewport,transform:dpr===1?null:[dpr,0,0,dpr,0,0]}).promise;
     state.pageNo=n;if(pageChanged){els.pdfScroller.scrollTop=0;els.pdfScroller.scrollLeft=0;if(els.toolRail)els.toolRail.style.transform='translateY(0)';}els.pageInput.value=String(n);els.pageCount.textContent=`/ ${state.pdf.numPages}`;els.prevPage.disabled=(!TEACHER&&state.teacherOnline)||n<=1;els.nextPage.disabled=(!TEACHER&&state.teacherOnline)||n>=state.pdf.numPages;
-    if(TEACHER){await loadTeacherPageData(forceData);await pushLiveState();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
-    else{await loadStudentPageData();persistStudentState();}
+    if(TEACHER){await loadTeacherPageData(forceData);if(pageChanged||!state.boards.length)await loadTeacherBoards();await pushLiveState();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
+    else{await loadStudentPageData();if(pageChanged||!state.boards.length)await loadStudentBoards();persistStudentState();if(state.teacherOnline)requestAnimationFrame(()=>applyTeacherCenter());}
   }finally{state.rendering=false;if(state.pendingPage!==null){const p=state.pendingPage;state.pendingPage=null;renderPage(p);}}
 }
 
-function setBoardOpen(open){state.boardOpen=!!open;if(TEACHER){els.workspace.classList.toggle('notes-hidden',!state.boardOpen);els.boardPanel.style.display=state.boardOpen?'':'none';els.noteSplit.style.display=state.boardOpen?'':'none';if(state.fit&&state.pdf)setTimeout(()=>renderPage(state.pageNo),50);}else{els.workspace.classList.toggle('notes-hidden',!state.boardOpen);els.boardPanel.classList.toggle('closed',!state.boardOpen);}persistStudentState();}
+function setBoardOpen(open){
+  state.boardOpen=!!open;
+  if(TEACHER){
+    els.workspace.classList.toggle('notes-hidden',!state.boardOpen);if(els.boardPanel)els.boardPanel.style.display=state.boardOpen?'':'none';if(els.noteSplit)els.noteSplit.style.display=state.boardOpen?'':'none';
+    if(els.toggleBoard){els.toggleBoard.textContent=state.boardOpen?'Hide notepad':'Show notepad';els.toggleBoard.setAttribute('aria-expanded',String(state.boardOpen));}
+    if(state.fit&&state.pdf)setTimeout(()=>renderPage(state.pageNo),50);
+  }else{
+    els.workspace.classList.toggle('notes-hidden',!state.boardOpen);
+    if(els.toggleBoard){els.toggleBoard.textContent=state.boardOpen?'Hide notes':'Show notes';els.toggleBoard.setAttribute('aria-expanded',String(state.boardOpen));}
+  }
+  persistStudentState();
+}
+
 function bindResizer(handle,onMove,onEnd){
   if(!handle)return;handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.classList.add('dragging');handle.setPointerCapture?.(e.pointerId);const move=ev=>onMove(ev);const up=()=>{handle.classList.remove('dragging');handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',up);handle.removeEventListener('pointercancel',up);onEnd?.();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',up);handle.addEventListener('pointercancel',up);});
 }
@@ -300,18 +372,38 @@ function bindLayout(){
   bindResizer(els.noteInnerSplit,e=>{const r=els.boardPanel.getBoundingClientRect(),pct=Math.max(18,Math.min(72,((e.clientY-r.top)/r.height)*100));document.documentElement.style.setProperty('--note-text-h',`${pct}%`);},saveLayout);
   bindResizer(els.studentSplit,e=>{const r=els.workspace.getBoundingClientRect(),h=Math.max(150,Math.min(r.height*.65,r.bottom-e.clientY));document.documentElement.style.setProperty('--student-note-h',`${h}px`);if(state.fit&&state.pdf)renderPage(state.pageNo);},()=>persistStudentState());
 }
+function bindStudentPinch(){
+  if(TEACHER||!els.pdfScroller)return;
+  let touches=new Map();
+  const distance=()=>{const a=[...touches.values()];if(a.length<2)return 0;return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);};
+  els.pdfScroller.addEventListener('pointerdown',e=>{
+    if(!state.teacherOnline||e.pointerType!=='touch')return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});els.pdfScroller.setPointerCapture?.(e.pointerId);
+    if(touches.size===2){state.pinch={startDist:distance(),baseScale:state.scale,visual:1};}
+  });
+  els.pdfScroller.addEventListener('pointermove',e=>{
+    if(!state.teacherOnline||e.pointerType!=='touch'||!touches.has(e.pointerId))return;e.preventDefault();touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(touches.size===2&&state.pinch){const d=distance(),factor=Math.max(.6,Math.min(1.8,d/Math.max(1,state.pinch.startDist)));state.pinch.visual=factor;els.canvasWrap.style.transform=`scale(${factor})`;els.canvasWrap.style.transformOrigin=`${state.liveCenterX*100}% ${state.liveCenterY*100}%`;}
+  },{passive:false});
+  const finish=async e=>{
+    if(e.pointerType!=='touch')return;touches.delete(e.pointerId);
+    if(state.pinch&&touches.size<2){const factor=state.pinch.visual||1;state.scale=Math.max(.4,Math.min(3.5,state.pinch.baseScale*factor));state.fit=false;state.pinch=null;els.canvasWrap.style.transform='';await renderPage(state.pageNo);requestAnimationFrame(()=>applyTeacherCenter());}
+  };
+  els.pdfScroller.addEventListener('pointerup',finish);els.pdfScroller.addEventListener('pointercancel',finish);
+}
+
 function bindCommon(){
   els.prevPage?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;renderPage(state.pageNo-1);});
   els.nextPage?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;renderPage(state.pageNo+1);});
   els.pageInput?.addEventListener('change',()=>{if(!TEACHER&&state.teacherOnline){els.pageInput.value=state.pageNo;return;}renderPage(els.pageInput.value);});
-  els.zoomOut?.addEventListener('click',()=>{state.fit=false;state.scale=Math.max(.4,state.scale-.15);renderPage(state.pageNo);persistStudentState();});
-  els.zoomIn?.addEventListener('click',()=>{state.fit=false;state.scale=Math.min(3.5,state.scale+.15);renderPage(state.pageNo);persistStudentState();});
-  els.fitPage?.addEventListener('click',()=>{state.fit=true;renderPage(state.pageNo);persistStudentState();});
+  els.zoomOut?.addEventListener('click',async()=>{state.fit=false;state.scale=Math.max(.4,state.scale-.15);await renderPage(state.pageNo);if(!TEACHER&&state.teacherOnline)applyTeacherCenter();persistStudentState();});
+  els.zoomIn?.addEventListener('click',async()=>{state.fit=false;state.scale=Math.min(3.5,state.scale+.15);await renderPage(state.pageNo);if(!TEACHER&&state.teacherOnline)applyTeacherCenter();persistStudentState();});
+  els.fitPage?.addEventListener('click',async()=>{state.fit=true;await renderPage(state.pageNo);if(!TEACHER&&state.teacherOnline)applyTeacherCenter();persistStudentState();});
   els.toggleBoard?.addEventListener('click',()=>setBoardOpen(!state.boardOpen));
   els.boardPrev?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;moveBoard(-1);});els.boardNext?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;moveBoard(1);});
   els.imagePrev?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;moveImage(-1);});els.imageNext?.addEventListener('click',()=>{if(!TEACHER&&state.teacherOnline)return;moveImage(1);});
   window.addEventListener('resize',()=>{clearTimeout(window.__sntResize);window.__sntResize=setTimeout(()=>state.fit&&state.pdf&&renderPage(state.pageNo),180);});
   bindLayout();
+  bindStudentPinch();
 }
 function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
@@ -319,6 +411,7 @@ function bindTeacher(){
   els.undoBtn?.addEventListener('click',()=>applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);
   els.boardText?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('change',()=>{const b=boardByNo();if(b)b.title=els.boardTitleInput.value.trim()||`Board ${state.boardNo}`;pushLiveState();});
   els.boardAdd?.addEventListener('click',addBoard);els.boardDelete?.addEventListener('click',deleteBoard);
+  els.imageZoomOut?.addEventListener('click',()=>changeImageZoom(-.25));els.imageZoomReset?.addEventListener('click',resetImageZoom);els.imageZoomIn?.addEventListener('click',()=>changeImageZoom(.25));
   els.pasteImageBtn?.addEventListener('click',()=>els.imageFileInput?.click());els.imageFileInput?.addEventListener('change',()=>{const f=els.imageFileInput.files?.[0];if(f)uploadImage(f);els.imageFileInput.value='';});els.deleteImageBtn?.addEventListener('click',deleteCurrentImage);
   document.addEventListener('paste',e=>{if(!TEACHER)return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!item)return;const file=item.getAsFile();if(file){e.preventDefault();uploadImage(file);}});
   els.copyStudentLink?.addEventListener('click',async()=>{await copyText(studentUrl());setStatus('Student link copied');});els.exportPdf?.addEventListener('click',exportAnnotatedPdf);els.libraryBtn?.addEventListener('click',openLibrary);els.signOutBtn?.addEventListener('click',async()=>{await supabase.auth.signOut();location.href='./teacher.html';});els.createDocBtn?.addEventListener('click',createDocumentFromForm);
@@ -327,7 +420,7 @@ function bindTeacher(){
   els.resetLayoutBtn?.addEventListener('click',resetLayout);
   els.pdfScroller?.addEventListener('scroll',()=>{
     if(els.toolRail&&window.innerWidth>650)els.toolRail.style.transform=`translateY(${-els.pdfScroller.scrollTop}px)`;
-    clearTimeout(state.scrollSyncTimer);state.scrollSyncTimer=setTimeout(()=>pushLiveState().catch(()=>{}),160);
+    clearTimeout(state.scrollSyncTimer);state.scrollSyncTimer=setTimeout(()=>pushLiveState().catch(()=>{}),110);
   },{passive:true});
   document.addEventListener('keydown',e=>{
     if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
@@ -374,10 +467,10 @@ async function refreshLibrary(){
 async function openLibrary(){await refreshLibrary();els.libraryDialog.showModal();}
 async function createDocumentFromForm(){
   const title=els.newTitle.value.trim(),url=els.newDriveUrl.value.trim(),fileId=extractDriveId(url);if(!title||!fileId)return setStatus('Enter a title and valid Google Drive PDF link.');const {data:{user}}=await supabase.auth.getUser();if(!user)return;
-  const row={owner_id:user.id,title,drive_file_id:fileId,drive_share_url:url,student_token:randomToken(),student_link_enabled:true,live_board_no:1};const {data,error}=await supabase.from('snt_pdf_documents').insert(row).select('*').single();if(error){setStatus(error.message);return;}await supabase.from('snt_pdf_boards').insert({document_id:data.id,board_no:1,title:'General notes',text_content:'',objects:[]});els.newTitle.value='';els.newDriveUrl.value='';els.libraryDialog.close();await openTeacherDocument(data);
+  const row={owner_id:user.id,title,drive_file_id:fileId,drive_share_url:url,student_token:randomToken(),student_link_enabled:true,live_board_no:1};const {data,error}=await supabase.from('snt_pdf_documents').insert(row).select('*').single();if(error){setStatus(error.message);return;}await supabase.from('snt_pdf_boards').insert({document_id:data.id,board_no:1,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});els.newTitle.value='';els.newDriveUrl.value='';els.libraryDialog.close();await openTeacherDocument(data);
 }
 async function openTeacherDocument(doc){
-  state.doc=doc;state.pageNo=Math.max(1,Number(doc.live_page||1));state.boardNo=Math.max(1,Number(doc.live_board_no||1));state.liveImageId=doc.live_image_id||null;state.revision=Number(doc.revision||0);els.docTitle.textContent=doc.title;els.contextText.textContent='Teacher • fast local drawing • autosave';history.replaceState(null,'',`./teacher.html?id=${encodeURIComponent(doc.id)}`);await loadTeacherBoards();await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(true);teacherHeartbeat();clearInterval(state.heartbeatTimer);state.heartbeatTimer=setInterval(teacherHeartbeat,Number(CONFIG.TEACHER_HEARTBEAT_MS||5000));
+  state.doc=doc;state.pageNo=Math.max(1,Number(doc.live_page||1));state.boardNo=Math.max(1,Number(doc.live_board_no||1));state.liveImageId=doc.live_image_id||null;state.liveCenterX=Math.max(0,Math.min(1,Number(doc.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(doc.live_center_y??.5)));state.liveZoom=Number(doc.live_zoom||1);state.revision=Number(doc.revision||0);els.docTitle.textContent=doc.title;els.contextText.textContent='Teacher • fast local drawing • autosave';history.replaceState(null,'',`./teacher.html?id=${encodeURIComponent(doc.id)}`);await loadTeacherBoards();await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(true);teacherHeartbeat();clearInterval(state.heartbeatTimer);state.heartbeatTimer=setInterval(teacherHeartbeat,Number(CONFIG.TEACHER_HEARTBEAT_MS||5000));
 }
 async function handleDriveQuery(){const params=new URLSearchParams(location.search),drive=params.get('drive');if(!drive)return false;const fileId=extractDriveId(drive);if(!fileId)return false;const {data}=await supabase.from('snt_pdf_documents').select('*').eq('drive_file_id',fileId).limit(1).maybeSingle();if(data){await openTeacherDocument(data);return true;}els.newDriveUrl.value=params.get('source')||`https://drive.google.com/file/d/${fileId}/view`;els.newTitle.value=params.get('title')||'Drive PDF';await openLibrary();return true;}
 async function bootTeacher(){
@@ -394,9 +487,9 @@ async function bootTeacherAfterLogin(){
 async function bootStudent(){
   bindCommon();state.token=new URLSearchParams(location.hash.replace(/^#/,'')).get('t');if(!state.token)return showError('This textbook link is missing or incomplete.');
   try{
-    const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=Math.max(1,Number(init.document.live_board_no||1));els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();
+    const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=Math.max(1,Number(init.document.live_board_no||1));els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
     if(state.teacherOnline){state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=Math.max(1,Number(init.document.live_board_no||1));}
-    setBoardOpen(state.boardOpen!==false);await loadStudentBoards();await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');
+    setBoardOpen(true);await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');
     state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||650));await pollStudentSync();
   }catch(e){showError(e.message);}
 }

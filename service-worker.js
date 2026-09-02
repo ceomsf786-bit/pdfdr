@@ -1,4 +1,4 @@
-const CACHE = 'snt-pdf-static-v2';
+const CACHE = 'snt-pdf-static-v3-1';
 const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./config.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(()=>{}));

@@ -82,12 +82,12 @@
         <div class="board-head">
           <div class="board-title-edit">
             <input id="boardTitleInput" value="Board 1" maxlength="80" aria-label="Board name">
-            <small id="boardLabel">Board 1</small>
+            <div class="board-meta"><small id="boardLabel">Board 1</small><small id="boardScopeLabel" class="scope-pill">Permanent</small></div>
           </div>
           <div class="board-nav">
             <button id="boardPrev" class="btn compact">←</button>
             <button id="boardNext" class="btn compact">→</button>
-            <button id="boardAdd" class="btn compact">+ Board</button>
+            <button id="boardAdd" class="btn compact">+ Page Board</button>
             <button id="boardDelete" class="btn compact danger-text">Delete</button>
           </div>
         </div>
@@ -99,12 +99,15 @@
             <span id="imageCounter">0 / 0</span>
             <button id="imagePrev" class="btn compact">←</button>
             <button id="imageNext" class="btn compact">→</button>
+            <button id="imageZoomOut" class="btn compact" title="Zoom image out">−</button>
+            <button id="imageZoomReset" class="btn compact">100%</button>
+            <button id="imageZoomIn" class="btn compact" title="Zoom image in">+</button>
             <button id="pasteImageBtn" class="btn compact">Choose image</button>
             <button id="deleteImageBtn" class="btn compact danger-text">Delete image</button>
             <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
           </div>
           <div id="imageStage" class="image-stage paste-stage">
-            <span>Paste an image here with Ctrl+V, or choose an image. Images stay with this named board regardless of PDF page.</span>
+            <span>Paste an image here with Ctrl+V, or choose an image. Images stay with this board. The permanent board stays on every PDF page; page boards belong only to their PDF page.</span>
             <img id="boardImage" class="hidden" alt="Pasted notepad image">
           </div>
         </section>

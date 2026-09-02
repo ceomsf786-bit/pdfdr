@@ -55,3 +55,28 @@ body[data-mode=student] .topbar{min-height:51px}body[data-mode=student] .student
   .teacher-workspace{grid-template-columns:56px 4px minmax(180px,1fr) 4px min(44vw,260px)}
   .tool{min-height:40px;font-size:1rem}.tool span{font-size:.58rem}.topbar .top-actions{overflow-x:auto;flex-wrap:nowrap;max-width:64vw}.topbar .top-actions .btn{white-space:nowrap}
 }
+
+/* v3: permanent/page boards, clearer student splitter and follow mode */
+.board-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.scope-pill{display:inline-flex!important;align-items:center;width:max-content;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent)!important;font-weight:700;font-size:.68rem!important}
+.scope-pill.page-scope{background:#eef3ff;color:#3b5ccc!important}
+.student-workspace{grid-template-rows:minmax(0,1fr) 18px var(--student-note-h)}
+.student-resize-bar{min-height:18px!important;height:18px!important;background:#d6e0e6;display:grid;place-items:center;cursor:row-resize;border-top:1px solid #bac8d0;border-bottom:1px solid #bac8d0}
+.student-resize-bar span{font-size:.64rem;font-weight:800;letter-spacing:.06em;color:#48606d;background:#fff;padding:2px 10px;border:1px solid #bdcbd3;border-radius:999px;pointer-events:none;white-space:nowrap}
+.student-resize-bar:hover,.student-resize-bar.dragging{background:#9fd4c3}
+.follow-hint{display:none;flex:0 0 auto;padding:4px 8px;text-align:center;background:#edf8f4;border-bottom:1px solid #b9dfd3;color:#176247;font-size:.72rem;font-weight:700}
+body.student-following .follow-hint{display:block}
+body.student-following .pdf-scroller{touch-action:none;overflow:hidden}
+body.student-following .canvas-wrap{user-select:none;-webkit-user-select:none}
+.teacher-images .image-stage img{transition:transform .08s linear;transform-origin:center center}
+.teacher-images .image-stage{scrollbar-gutter:stable both-edges}
+.btn:disabled{opacity:.46;cursor:not-allowed}
+body[data-mode=student] .student-workspace.notes-hidden{grid-template-rows:minmax(0,1fr) 0 0}
+body[data-mode=student] .student-workspace.notes-hidden #studentSplit,
+body[data-mode=student] .student-workspace.notes-hidden .student-board{display:none!important}
+
+@media(max-width:650px){
+  .student-resize-bar{height:22px!important;min-height:22px!important}
+  .student-resize-bar span{font-size:.61rem;padding:2px 7px}
+  .follow-hint{font-size:.67rem;padding:3px 5px}
+}

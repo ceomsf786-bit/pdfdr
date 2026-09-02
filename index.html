@@ -21,7 +21,7 @@
         <button id="zoomOut" class="btn compact">−</button>
         <button id="fitPage" class="btn compact">Fit</button>
         <button id="zoomIn" class="btn compact">+</button>
-        <button id="toggleBoard" class="btn compact">Notes</button>
+        <button id="toggleBoard" class="btn compact" aria-expanded="true">Hide notes</button>
       </div>
     </header>
 
@@ -29,7 +29,7 @@
     <section id="error" class="error hidden"></section>
 
     <section id="workspace" class="workspace student-workspace hidden">
-      <section class="pdf-area">
+      <section class="pdf-area"><div id="followHint" class="follow-hint">Teacher controls the page and position • pinch with 2 fingers to zoom</div>
         <div id="pdfScroller" class="pdf-scroller">
           <div id="canvasWrap" class="canvas-wrap">
             <canvas id="pdfCanvas"></canvas>
@@ -38,11 +38,11 @@
         </div>
       </section>
 
-      <div id="studentSplit" class="splitter horizontal-splitter" title="Drag to resize PDF and notes"></div>
+      <div id="studentSplit" class="splitter horizontal-splitter student-resize-bar" title="Drag to resize PDF and notepad"><span>⇅ DRAG TO RESIZE PDF / NOTEPAD ⇅</span></div>
 
       <aside id="boardPanel" class="board-panel student-board open">
         <div class="board-head">
-          <div><strong id="boardTitleDisplay">Teacher Notepad</strong><small id="boardLabel">Board 1</small></div>
+          <div><strong id="boardTitleDisplay">Teacher Notepad</strong><div class="board-meta"><small id="boardLabel">Board 1</small><small id="boardScopeLabel" class="scope-pill">Permanent</small></div></div>
           <div class="board-nav">
             <button id="boardPrev" class="btn compact">←</button>
             <button id="boardNext" class="btn compact">→</button>
