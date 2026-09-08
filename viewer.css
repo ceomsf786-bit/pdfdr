@@ -1,7 +1,7 @@
 :root{
   --bg:#edf1f4;--panel:#fff;--text:#172033;--muted:#687386;--line:#d7dfe7;
   --accent:#147a5a;--accent-soft:#e8f6f1;--danger:#b42318;--shadow:0 5px 20px rgba(20,30,45,.12);
-  --tools-w:78px;--notes-w:340px;--student-note-h:34vh;--note-text-h:36%;
+  --tools-w:78px;--notes-w:340px;--student-note-h:40vh;--note-text-h:36%;--student-permanent-h:110px;--student-page-h:130px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);overscroll-behavior-y:none}
@@ -66,7 +66,7 @@ body[data-mode=student] .topbar{min-height:51px}body[data-mode=student] .student
 .student-resize-bar:hover,.student-resize-bar.dragging{background:#9fd4c3}
 .follow-hint{display:none;flex:0 0 auto;padding:4px 8px;text-align:center;background:#edf8f4;border-bottom:1px solid #b9dfd3;color:#176247;font-size:.72rem;font-weight:700}
 body.student-following .follow-hint{display:block}
-body.student-following .pdf-scroller{touch-action:none;overflow:hidden}
+body.student-following .pdf-scroller{touch-action:none;overflow:auto;overscroll-behavior:contain}
 body.student-following .canvas-wrap{user-select:none;-webkit-user-select:none}
 .teacher-images .image-stage img{transition:transform .08s linear;transform-origin:center center}
 .teacher-images .image-stage{scrollbar-gutter:stable both-edges}
@@ -107,4 +107,100 @@ body.student-following .follow-hint{display:block}
   .student-note-card-head{padding:6px 7px}
   .student-note-text,.page-note-entry{padding:7px 8px}
   .student-image-section{min-height:120px}
+}
+
+
+/* v3.4 — student hook + independently resizable/scrollable notes blocks */
+body[data-mode=student] .student-board{
+  display:grid;
+  grid-template-rows:auto var(--student-permanent-h) 16px var(--student-page-h) 16px minmax(110px,1fr);
+  overflow:hidden;
+  min-height:0;
+}
+body[data-mode=student] .student-notes-head{min-height:0}
+body[data-mode=student] .student-resizable-block{
+  min-height:0;
+  height:auto;
+  max-height:none;
+  overflow:hidden;
+  border-radius:0;
+  border-left:0;
+  border-right:0;
+  box-shadow:none;
+  display:flex;
+  flex-direction:column;
+}
+body[data-mode=student] .student-block-scroll,
+body[data-mode=student] .page-notes-list{
+  min-height:0;
+  flex:1 1 auto;
+  overflow:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+}
+body[data-mode=student] .student-note-text{
+  min-height:max-content;
+}
+body[data-mode=student] .student-image-section{
+  min-height:0!important;
+  flex:none;
+  overflow:hidden;
+}
+body[data-mode=student] .student-image-section .image-stage{
+  min-height:0;
+  overflow:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.note-block-splitter{
+  height:16px!important;
+  min-height:16px!important;
+  display:grid;
+  place-items:center;
+  background:#d6e0e6;
+  border-top:1px solid #bac8d0;
+  border-bottom:1px solid #bac8d0;
+  cursor:row-resize;
+  touch-action:none;
+  z-index:4;
+}
+.note-block-splitter span{
+  pointer-events:none;
+  white-space:nowrap;
+  font-size:.57rem;
+  font-weight:800;
+  letter-spacing:.04em;
+  color:#48606d;
+  background:#fff;
+  border:1px solid #bdcbd3;
+  border-radius:999px;
+  padding:1px 7px;
+}
+.note-block-splitter.dragging,.note-block-splitter:hover{background:#9fd4c3}
+
+/* Hook locks teacher-controlled PDF navigation only.
+   Student note pane + all resize handles stay interactive. */
+body.student-following #studentSplit,
+body.student-following #studentPermanentSplit,
+body.student-following #studentPageSplit,
+body.student-following #toggleBoard,
+body.student-following #zoomOut,
+body.student-following #zoomIn,
+body.student-following #fitPage{
+  pointer-events:auto;
+  opacity:1;
+}
+
+@media(max-width:650px){
+  :root{
+    --student-note-h:44vh;
+    --student-permanent-h:96px;
+    --student-page-h:112px;
+  }
+  body[data-mode=student] .student-board{
+    grid-template-rows:auto var(--student-permanent-h) 18px var(--student-page-h) 18px minmax(90px,1fr);
+  }
+  .note-block-splitter{height:18px!important;min-height:18px!important}
+  .note-block-splitter span{font-size:.53rem;padding:1px 5px}
 }

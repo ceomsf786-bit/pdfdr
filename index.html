@@ -29,7 +29,7 @@
     <section id="error" class="error hidden"></section>
 
     <section id="workspace" class="workspace student-workspace hidden">
-      <section class="pdf-area"><div id="followHint" class="follow-hint">Hooked to teacher: page and position follow teacher • you control zoom and notes • pinch with 2 fingers to zoom</div>
+      <section class="pdf-area"><div id="followHint" class="follow-hint">Hooked: teacher controls PDF page + position • YOU control zoom, notes visibility and all resize bars • pinch with 2 fingers to zoom</div>
         <div id="pdfScroller" class="pdf-scroller">
           <div id="canvasWrap" class="canvas-wrap">
             <canvas id="pdfCanvas"></canvas>
@@ -48,25 +48,33 @@
           </div>
         </div>
 
-        <div class="student-note-stack">
-          <section id="permanentNotesSection" class="student-note-card permanent-note-card">
-            <div class="student-note-card-head">
-              <strong id="permanentTitle">Permanent board</strong>
-              <span class="scope-pill">All pages</span>
-            </div>
+        <section id="permanentNotesSection" class="student-note-card permanent-note-card student-resizable-block">
+          <div class="student-note-card-head">
+            <strong id="permanentTitle">Permanent board</strong>
+            <span class="scope-pill">All pages</span>
+          </div>
+          <div class="student-block-scroll">
             <div id="permanentText" class="student-note-text">No permanent notes yet.</div>
-          </section>
+          </div>
+        </section>
 
-          <section id="pageNotesSection" class="student-note-card page-notes-card">
-            <div class="student-note-card-head">
-              <strong>Page notes</strong>
-              <span id="pageNotesBadge" class="scope-pill page-scope">Page 1</span>
-            </div>
-            <div id="pageNotesList" class="page-notes-list">No page notes yet.</div>
-          </section>
+        <div id="studentPermanentSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize permanent notes and page notes">
+          <span>⇅ PERMANENT / PAGE NOTES ⇅</span>
         </div>
 
-        <section class="image-section student-image-section">
+        <section id="pageNotesSection" class="student-note-card page-notes-card student-resizable-block">
+          <div class="student-note-card-head">
+            <strong>Page notes</strong>
+            <span id="pageNotesBadge" class="scope-pill page-scope">Page 1</span>
+          </div>
+          <div id="pageNotesList" class="page-notes-list student-block-scroll">No page notes yet.</div>
+        </section>
+
+        <div id="studentPageSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize page notes and images">
+          <span>⇅ PAGE NOTES / IMAGES ⇅</span>
+        </div>
+
+        <section class="image-section student-image-section student-resizable-block">
           <div class="image-toolbar">
             <strong id="studentImageTitle">Teacher images</strong>
             <span id="imageCounter">0 / 0</span>

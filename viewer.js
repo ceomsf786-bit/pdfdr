@@ -20,7 +20,7 @@ const els = {
   imageSection:$('imageSection'), imageStage:$('imageStage'), boardImage:$('boardImage'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
   statusText:$('statusText'), liveText:$('liveText'),
   toolRail:$('toolRail'), toolButtons:[...document.querySelectorAll('[data-tool]')], widthInput:$('widthInput'), colorInput:$('colorInput'), undoBtn:$('undoBtn'), redoBtn:$('redoBtn'), deleteSelected:$('deleteSelected'),
-  toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'),
+  toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'),
   loginPanel:$('loginPanel'), loginForm:$('loginForm'), emailInput:$('emailInput'), passwordInput:$('passwordInput'), signOutBtn:$('signOutBtn'),
   libraryBtn:$('libraryBtn'), libraryDialog:$('libraryDialog'), libraryList:$('libraryList'), createDocBtn:$('createDocBtn'), newTitle:$('newTitle'), newDriveUrl:$('newDriveUrl'), copyStudentLink:$('copyStudentLink'), hookStudentsBtn:$('hookStudentsBtn'), exportPdf:$('exportPdf'),
   fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn')
@@ -44,7 +44,8 @@ function showLoading(message='Loading…'){
   if(els.loading){ els.loading.textContent=message; els.loading.classList.remove('hidden'); }
 }
 function setStatus(message){ if(els.statusText) els.statusText.textContent=message; }
-function studentFollowActive(){ return !TEACHER && state.teacherOnline && state.studentHooked; }
+// Explicit hook is authoritative. Teacher-online is only informational.
+function studentFollowActive(){ return !TEACHER && state.studentHooked; }
 function updateHookButton(){
   if(!TEACHER || !els.hookStudentsBtn) return;
   els.hookStudentsBtn.textContent=state.studentHooked?'🔗 Students hooked':'⛓ Students unhooked';
@@ -94,13 +95,25 @@ async function api(action, extra={}){
 }
 function persistStudentState(){
   if(TEACHER || !state.doc) return;
-  try{ localStorage.setItem(`sntpdf:${state.doc.id}`,JSON.stringify({pageNo:state.pageNo,boardNo:state.boardNo,scale:state.scale,fit:state.fit,boardOpen:state.boardOpen,imageIndex:state.imageIndex})); }catch{}
+  try{
+    const cs=getComputedStyle(document.documentElement);
+    localStorage.setItem(`sntpdf:${state.doc.id}`,JSON.stringify({
+      pageNo:state.pageNo,boardNo:state.boardNo,scale:state.scale,fit:state.fit,
+      boardOpen:state.boardOpen,imageIndex:state.imageIndex,
+      studentNoteH:cs.getPropertyValue('--student-note-h').trim(),
+      permanentH:cs.getPropertyValue('--student-permanent-h').trim(),
+      pageNotesH:cs.getPropertyValue('--student-page-h').trim()
+    }));
+  }catch{}
 }
 function restoreStudentState(){
   if(TEACHER || !state.doc) return;
   try{
     const v=JSON.parse(localStorage.getItem(`sntpdf:${state.doc.id}`)||'null'); if(!v) return;
     state.pageNo=Math.max(1,Number(v.pageNo||1)); state.boardNo=Math.max(1,Number(v.boardNo||1)); state.scale=Math.max(.4,Math.min(3.5,Number(v.scale||1.15))); state.fit=v.fit!==false; state.boardOpen=v.boardOpen!==false; state.imageIndex=Math.max(0,Number(v.imageIndex||0));
+    if(v.studentNoteH)document.documentElement.style.setProperty('--student-note-h',v.studentNoteH);
+    if(v.permanentH)document.documentElement.style.setProperty('--student-permanent-h',v.permanentH);
+    if(v.pageNotesH)document.documentElement.style.setProperty('--student-page-h',v.pageNotesH);
   }catch{}
 }
 
@@ -228,10 +241,13 @@ function renderStudentNotes(){
 }
 function chooseStudentImageBoard(preferred=state.liveBoardNo){
   if(TEACHER) return;
+  // Preserve the student's current image-board choice whenever it still belongs
+  // to the permanent board or the current PDF page.
+  const current=state.boards.find(b=>Number(b.board_no)===Number(state.boardNo));
   const preferredBoard=state.boards.find(b=>Number(b.board_no)===Number(preferred));
   const permanent=firstPermanentBoard();
   const firstPageBoard=state.boards.find(b=>!b.is_permanent && b.board_scope==='page' && Number(b.page_no)===Number(state.pageNo));
-  const chosen=preferredBoard||firstPageBoard||permanent||state.boards[0];
+  const chosen=current||preferredBoard||firstPageBoard||permanent||state.boards[0];
   if(chosen) state.boardNo=Number(chosen.board_no);
   if(els.studentImageTitle) els.studentImageTitle.textContent=`Teacher images${chosen?.title?' — '+chosen.title:''}`;
 }
@@ -357,7 +373,9 @@ async function pollStudentSync(){
     const following=studentFollowActive();
     document.body.classList.toggle('student-following',following);
     if(els.liveText){
-      els.liveText.textContent=following?'🔗 Hooked to teacher':state.teacherOnline?'Teacher online • free view':'Teacher offline • free view';
+      els.liveText.textContent=following
+        ? (state.teacherOnline?'🔗 Hooked to teacher':'🔗 Hooked • holding teacher view')
+        : (state.teacherOnline?'Teacher online • free view':'Teacher offline • free view');
       els.liveText.classList.toggle('following',following);
     }
     if(els.prevPage)els.prevPage.disabled=following||state.pageNo<=1;
@@ -373,15 +391,10 @@ async function pollStudentSync(){
         await loadStudentBoards();
       }
 
-      const targetBoard=state.liveBoardNo;
-      if(!state.boards.some(b=>Number(b.board_no)===targetBoard)){
+      // Hook controls only the PDF page + teacher position.
+      // Notes visibility, note block sizes and image browsing stay under student control.
+      if(revisionChanged){
         await loadStudentBoards();
-      }else if(targetBoard!==state.boardNo||targetBoard!==previousLiveBoard){
-        chooseStudentImageBoard(targetBoard);
-        state.imageZoom=1;
-        await loadImages();
-      }else if((s.live_image_id||null)!==(previousLiveImage||null)){
-        await loadImages();
       }
       requestAnimationFrame(()=>applyTeacherCenter());
     }else if(revisionChanged){
@@ -390,7 +403,7 @@ async function pollStudentSync(){
     }
 
     state.revision=newRevision;
-    if(!wasFollowing&&following)setStatus('Hooked: teacher controls the PDF page and position. Your zoom and notes panel remain yours.');
+    if(!wasFollowing&&following)setStatus('HOOKED: teacher controls PDF page + position. Your zoom, notes show/hide and resize bars remain yours.');
     else if(wasFollowing&&!following)setStatus(state.teacherOnline?'Unhooked: you can browse pages freely.':'Teacher disconnected: you can browse pages freely.');
   }catch{}
 }
@@ -436,13 +449,37 @@ function bindResizer(handle,onMove,onEnd){
 }
 function saveLayout(){if(!TEACHER)return;const cs=getComputedStyle(document.documentElement);try{localStorage.setItem('sntpdf:teacher-layout',JSON.stringify({tools:cs.getPropertyValue('--tools-w').trim(),notes:cs.getPropertyValue('--notes-w').trim(),text:cs.getPropertyValue('--note-text-h').trim()}));}catch{}}
 function restoreLayout(){if(!TEACHER)return;try{const v=JSON.parse(localStorage.getItem('sntpdf:teacher-layout')||'null');if(!v)return;if(v.tools)document.documentElement.style.setProperty('--tools-w',v.tools);if(v.notes)document.documentElement.style.setProperty('--notes-w',v.notes);if(v.text)document.documentElement.style.setProperty('--note-text-h',v.text);}catch{}}
-function resetLayout(){document.documentElement.style.removeProperty('--tools-w');document.documentElement.style.removeProperty('--notes-w');document.documentElement.style.removeProperty('--note-text-h');document.documentElement.style.removeProperty('--student-note-h');try{localStorage.removeItem('sntpdf:teacher-layout');}catch{};state.fit=true;if(state.pdf)renderPage(state.pageNo);}
+function resetLayout(){document.documentElement.style.removeProperty('--tools-w');document.documentElement.style.removeProperty('--notes-w');document.documentElement.style.removeProperty('--note-text-h');document.documentElement.style.removeProperty('--student-note-h');document.documentElement.style.removeProperty('--student-permanent-h');document.documentElement.style.removeProperty('--student-page-h');try{localStorage.removeItem('sntpdf:teacher-layout');}catch{};state.fit=true;if(state.pdf)renderPage(state.pageNo);}
 function bindLayout(){
   restoreLayout();
   bindResizer(els.toolSplit,e=>{const x=Math.max(58,Math.min(160,e.clientX));document.documentElement.style.setProperty('--tools-w',`${x}px`);},saveLayout);
   bindResizer(els.noteSplit,e=>{const rect=els.workspace.getBoundingClientRect(),w=Math.max(220,Math.min(rect.width*.62,rect.right-e.clientX));document.documentElement.style.setProperty('--notes-w',`${w}px`);if(state.fit&&state.pdf)renderPage(state.pageNo);},saveLayout);
   bindResizer(els.noteInnerSplit,e=>{const r=els.boardPanel.getBoundingClientRect(),pct=Math.max(18,Math.min(72,((e.clientY-r.top)/r.height)*100));document.documentElement.style.setProperty('--note-text-h',`${pct}%`);},saveLayout);
-  bindResizer(els.studentSplit,e=>{const r=els.workspace.getBoundingClientRect(),h=Math.max(150,Math.min(r.height*.65,r.bottom-e.clientY));document.documentElement.style.setProperty('--student-note-h',`${h}px`);if(state.fit&&state.pdf)renderPage(state.pageNo);},()=>persistStudentState());
+
+  // Student resizing is intentionally LOCAL and works both hooked and unhooked.
+  bindResizer(els.studentSplit,e=>{
+    const r=els.workspace.getBoundingClientRect(),h=Math.max(170,Math.min(r.height*.78,r.bottom-e.clientY));
+    document.documentElement.style.setProperty('--student-note-h',`${h}px`);
+    if(state.fit&&state.pdf)renderPage(state.pageNo);
+  },()=>persistStudentState());
+
+  bindResizer(els.studentPermanentSplit,e=>{
+    if(TEACHER||!els.boardPanel||!els.permanentNotesSection)return;
+    const panel=els.boardPanel.getBoundingClientRect();
+    const top=els.permanentNotesSection.getBoundingClientRect().top;
+    const max=Math.max(100,panel.height-250);
+    const h=Math.max(80,Math.min(max,e.clientY-top));
+    document.documentElement.style.setProperty('--student-permanent-h',`${h}px`);
+  },()=>persistStudentState());
+
+  bindResizer(els.studentPageSplit,e=>{
+    if(TEACHER||!els.boardPanel||!els.pageNotesSection)return;
+    const panel=els.boardPanel.getBoundingClientRect();
+    const top=els.pageNotesSection.getBoundingClientRect().top;
+    const max=Math.max(100,panel.bottom-top-130);
+    const h=Math.max(80,Math.min(max,e.clientY-top));
+    document.documentElement.style.setProperty('--student-page-h',`${h}px`);
+  },()=>persistStudentState());
 }
 function bindStudentPinch(){
   if(TEACHER||!els.pdfScroller)return;
@@ -471,8 +508,9 @@ function bindCommon(){
   els.zoomIn?.addEventListener('click',async()=>{state.fit=false;state.scale=Math.min(3.5,state.scale+.15);await renderPage(state.pageNo);if(studentFollowActive())applyTeacherCenter();persistStudentState();});
   els.fitPage?.addEventListener('click',async()=>{state.fit=true;await renderPage(state.pageNo);if(studentFollowActive())applyTeacherCenter();persistStudentState();});
   els.toggleBoard?.addEventListener('click',()=>setBoardOpen(!state.boardOpen));
-  els.boardPrev?.addEventListener('click',()=>{if(studentFollowActive())return;moveBoard(-1);});els.boardNext?.addEventListener('click',()=>{if(studentFollowActive())return;moveBoard(1);});
-  els.imagePrev?.addEventListener('click',()=>{if(studentFollowActive())return;moveImage(-1);});els.imageNext?.addEventListener('click',()=>{if(studentFollowActive())return;moveImage(1);});
+  els.boardPrev?.addEventListener('click',()=>moveBoard(-1));els.boardNext?.addEventListener('click',()=>moveBoard(1));
+  // Student note/image browsing is always local, whether hooked or unhooked.
+  els.imagePrev?.addEventListener('click',()=>moveImage(-1));els.imageNext?.addEventListener('click',()=>moveImage(1));
   window.addEventListener('resize',()=>{clearTimeout(window.__sntResize);window.__sntResize=setTimeout(()=>state.fit&&state.pdf&&renderPage(state.pageNo),180);});
   bindLayout();
   bindStudentPinch();
