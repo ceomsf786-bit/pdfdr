@@ -118,23 +118,27 @@
 
         <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
         <section id="imageSection" class="image-section teacher-images" tabindex="0">
-          <div class="image-toolbar">
+          <div class="image-toolbar gallery-toolbar">
             <strong>PDF gallery</strong>
-            <span id="imageCounter">0 / 0</span>
-            <button id="imagePrev" class="btn compact">←</button>
-            <button id="imageNext" class="btn compact">→</button>
-            <button id="imageZoomOut" class="btn compact" title="Zoom image out">−</button>
-            <button id="imageZoomReset" class="btn compact">100%</button>
-            <button id="imageZoomIn" class="btn compact" title="Zoom image in">+</button>
+            <span id="imageCounter">0 images</span>
+            <button id="imagePrev" class="btn compact" title="Select previous image">←</button>
+            <button id="imageNext" class="btn compact" title="Select next image">→</button>
+            <button id="imageZoomOut" class="btn compact" title="Zoom gallery out">−</button>
+            <button id="imageZoomReset" class="btn compact">50%</button>
+            <button id="imageZoomIn" class="btn compact" title="Zoom gallery in">+</button>
+            <button id="galleryArrangeBtn" class="btn compact" type="button">Arrange images</button>
+            <button id="galleryTileBtn" class="btn compact" type="button">Auto tile</button>
             <button id="pasteImageBtn" class="btn compact">Choose image</button>
-            <button id="deleteImageBtn" class="btn compact danger-text">Delete image</button>
-            <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <button id="deleteImageBtn" class="btn compact danger-text">Delete selected</button>
+            <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
           </div>
-          <div id="imageStage" class="image-stage paste-stage">
-            <span>Paste an image here with Ctrl+V, or choose an image. Gallery images belong to the whole PDF, not to a single page. You can switch between them and annotate directly on top of the current image.</span>
-            <div id="imageCanvasWrap" class="image-canvas-wrap hidden">
-              <img id="boardImage" class="hidden" alt="Pasted notepad image">
-              <canvas id="imageOverlayCanvas" class="image-overlay"></canvas>
+          <div id="imageStage" class="image-stage gallery-stage">
+            <div id="galleryZoomWrap" class="gallery-zoom-wrap">
+              <div id="galleryBoard" class="gallery-board">
+                <div class="gallery-grid"></div>
+                <div id="galleryImagesLayer" class="gallery-images-layer"></div>
+                <canvas id="galleryOverlayCanvas" class="gallery-overlay"></canvas>
+              </div>
             </div>
           </div>
         </section>

@@ -75,13 +75,24 @@
         </div>
 
         <section class="image-section student-image-section student-resizable-block">
-          <div class="image-toolbar">
+          <div class="image-toolbar gallery-toolbar">
             <strong id="studentImageTitle">Teacher gallery</strong>
-            <span id="imageCounter">0 / 0</span>
-            <button id="imagePrev" class="btn compact">←</button>
-            <button id="imageNext" class="btn compact">→</button>
+            <span id="imageCounter">0 images</span>
+            <button id="imagePrev" class="btn compact" title="Previous image">←</button>
+            <button id="imageNext" class="btn compact" title="Next image">→</button>
+            <button id="imageZoomOut" class="btn compact" title="Zoom gallery out">−</button>
+            <button id="imageZoomReset" class="btn compact">50%</button>
+            <button id="imageZoomIn" class="btn compact" title="Zoom gallery in">+</button>
           </div>
-          <div id="imageStage" class="image-stage"><span>No gallery image selected yet.</span><div id="imageCanvasWrap" class="image-canvas-wrap hidden"><img id="boardImage" class="hidden" alt="Teacher gallery image"><canvas id="imageOverlayCanvas" class="image-overlay"></canvas></div></div>
+          <div id="imageStage" class="image-stage gallery-stage">
+            <div id="galleryZoomWrap" class="gallery-zoom-wrap">
+              <div id="galleryBoard" class="gallery-board student-gallery-board">
+                <div class="gallery-grid"></div>
+                <div id="galleryImagesLayer" class="gallery-images-layer"></div>
+                <canvas id="galleryOverlayCanvas" class="gallery-overlay"></canvas>
+              </div>
+            </div>
+          </div>
         </section>
       </aside>
     </section>

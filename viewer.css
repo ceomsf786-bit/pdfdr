@@ -245,3 +245,68 @@ body[data-mode=teacher] .image-overlay{pointer-events:auto;touch-action:none;cur
 body[data-mode=student] .image-overlay{pointer-events:none}
 .image-stage.has-image > span{display:none}
 .teacher-images .image-stage{align-items:flex-start}
+
+
+/* v3.8 — freeform whole-document gallery board */
+.gallery-stage{
+  position:relative;
+  display:block!important;
+  overflow:auto!important;
+  background:#dfe6ea;
+  min-height:0;
+  overscroll-behavior:contain;
+}
+.gallery-zoom-wrap{position:relative;min-width:1px;min-height:1px}
+.gallery-board{
+  position:absolute;
+  left:0;top:0;
+  width:2400px;height:1800px;
+  transform-origin:0 0;
+  background:#fff;
+  box-shadow:0 1px 6px rgba(15,23,42,.14);
+  overflow:hidden;
+}
+.gallery-grid{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(#e7ecef 1px,transparent 1px),linear-gradient(90deg,#e7ecef 1px,transparent 1px);
+  background-size:40px 40px;
+  opacity:.65;
+}
+.gallery-images-layer{position:absolute;inset:0;pointer-events:none}
+.gallery-tile{
+  position:absolute;
+  min-width:90px;min-height:70px;
+  background:#fff;
+  border:2px solid transparent;
+  box-shadow:0 2px 8px rgba(15,23,42,.18);
+  overflow:visible;
+  user-select:none;
+  touch-action:none;
+}
+.gallery-tile img{width:100%;height:100%;display:block;object-fit:contain;background:#fff;pointer-events:none}
+.gallery-tile.selected{border-color:#147a5a;box-shadow:0 0 0 2px rgba(20,122,90,.2),0 3px 12px rgba(15,23,42,.24)}
+.gallery-tile-label{
+  position:absolute;left:0;top:-23px;max-width:100%;height:21px;
+  display:none;align-items:center;padding:0 6px;border-radius:5px 5px 0 0;
+  background:#147a5a;color:#fff;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.gallery-tile.selected .gallery-tile-label{display:flex}
+.gallery-resize-handle{
+  display:none;position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;
+  border-radius:4px;background:#147a5a;border:2px solid white;cursor:nwse-resize;
+  box-shadow:0 1px 4px rgba(0,0,0,.2);
+}
+.gallery-board.arrange-mode .gallery-images-layer{pointer-events:auto}
+.gallery-board.arrange-mode .gallery-tile{pointer-events:auto;cursor:grab}
+.gallery-board.arrange-mode .gallery-tile:active{cursor:grabbing}
+.gallery-board.arrange-mode .gallery-tile.selected .gallery-resize-handle{display:block}
+.gallery-overlay{position:absolute;inset:0;width:2400px;height:1800px;touch-action:none;cursor:crosshair;pointer-events:auto}
+.gallery-board.arrange-mode .gallery-overlay{pointer-events:none}
+body[data-mode=student] .gallery-images-layer{pointer-events:none}
+body[data-mode=student] .gallery-overlay{pointer-events:none}
+.gallery-toolbar{flex-wrap:wrap;gap:4px}
+.gallery-toolbar .btn.active{background:#147a5a;color:#fff;border-color:#147a5a}
+@media(max-width:650px){
+  .gallery-toolbar{padding:4px;gap:3px}
+  .gallery-toolbar .btn{min-height:30px;padding:3px 6px}
+}
