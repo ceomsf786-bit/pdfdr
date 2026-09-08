@@ -233,3 +233,15 @@ body[data-mode=student] #liveText.following{background:#e8f6f1;border-radius:999
 /* Student PDF one-finger panning + true horizontal access at high zoom */
 body[data-mode=student] #overlayCanvas{pointer-events:none}
 body[data-mode=student] .canvas-wrap{touch-action:none}
+
+
+/* v3.7 — global PDF gallery + image annotation surface */
+.image-stage{overflow:auto;display:flex;justify-content:center;align-items:flex-start;position:relative}
+.image-canvas-wrap{position:relative;display:inline-block;flex:0 0 auto;max-width:none;max-height:none}
+.image-canvas-wrap.hidden{display:none}
+.image-canvas-wrap img{display:block}
+.image-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+body[data-mode=teacher] .image-overlay{pointer-events:auto;touch-action:none;cursor:crosshair}
+body[data-mode=student] .image-overlay{pointer-events:none}
+.image-stage.has-image > span{display:none}
+.teacher-images .image-stage{align-items:flex-start}

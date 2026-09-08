@@ -119,7 +119,7 @@
         <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
         <section id="imageSection" class="image-section teacher-images" tabindex="0">
           <div class="image-toolbar">
-            <strong>Pasted images</strong>
+            <strong>PDF gallery</strong>
             <span id="imageCounter">0 / 0</span>
             <button id="imagePrev" class="btn compact">←</button>
             <button id="imageNext" class="btn compact">→</button>
@@ -131,8 +131,11 @@
             <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
           </div>
           <div id="imageStage" class="image-stage paste-stage">
-            <span>Paste an image here with Ctrl+V, or choose an image. Images stay with this board. The permanent board stays on every PDF page; page boards belong only to their PDF page.</span>
-            <img id="boardImage" class="hidden" alt="Pasted notepad image">
+            <span>Paste an image here with Ctrl+V, or choose an image. Gallery images belong to the whole PDF, not to a single page. You can switch between them and annotate directly on top of the current image.</span>
+            <div id="imageCanvasWrap" class="image-canvas-wrap hidden">
+              <img id="boardImage" class="hidden" alt="Pasted notepad image">
+              <canvas id="imageOverlayCanvas" class="image-overlay"></canvas>
+            </div>
           </div>
         </section>
       </aside>

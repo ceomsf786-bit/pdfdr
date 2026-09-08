@@ -17,7 +17,7 @@ const els = {
   boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardScopeLabel:$('boardScopeLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'),
   permanentNotesSection:$('permanentNotesSection'), permanentTitle:$('permanentTitle'), permanentText:$('permanentText'), pageNotesSection:$('pageNotesSection'), pageNotesBadge:$('pageNotesBadge'), pageNotesList:$('pageNotesList'), studentImageTitle:$('studentImageTitle'),
   boardPrev:$('boardPrev'), boardNext:$('boardNext'), boardAdd:$('boardAdd'), boardDelete:$('boardDelete'),
-  imageSection:$('imageSection'), imageStage:$('imageStage'), boardImage:$('boardImage'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
+  imageSection:$('imageSection'), imageStage:$('imageStage'), imageCanvasWrap:$('imageCanvasWrap'), boardImage:$('boardImage'), imageOverlayCanvas:$('imageOverlayCanvas'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
   statusText:$('statusText'), liveText:$('liveText'),
   toolRail:$('toolRail'), toolButtons:[...document.querySelectorAll('[data-tool]')], widthInput:$('widthInput'), colorInput:$('colorInput'), undoBtn:$('undoBtn'), redoBtn:$('redoBtn'), deleteSelected:$('deleteSelected'),
   toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'),
@@ -29,13 +29,13 @@ const els = {
 
 const state = {
   token:null, session:null, doc:null, pdf:null, pageNo:1, scale:1.15, fit:true, rendering:false, pendingPage:null,
-  pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), revision:0,
-  tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], rafPending:false,
+  pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), imageObjects:[], imageAnnoCache:new Map(), revision:0,
+  tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], imageUndo:[], imageRedo:[], rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
   boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:1, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
   remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
-  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null
+  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, imageSaveTimer:null, imageBroadcastTimer:null
 };
 
 function showError(message){
@@ -96,6 +96,7 @@ function captureTeacherView(){
     live_center_y:centerY,
     live_scroll_ratio:scrollRatio,
     student_hooked:state.studentHooked,
+    live_image_id: state.liveImageId || null,
     sent_at:Date.now(),
     seq:++state.liveSeq
   };
@@ -127,6 +128,11 @@ async function drainRemoteTeacherView(){
       state.studentHooked=p.student_hooked!==false;
       state.liveCenterX=clamp01(p.live_center_x,.5);
       state.liveCenterY=clamp01(p.live_center_y,.5);
+      const incomingImage = p.live_image_id || null;
+      if(incomingImage !== state.liveImageId){
+        state.liveImageId = incomingImage;
+        await loadImages(true);
+      }
       refreshStudentHookUi();
       if(!state.studentHooked||!state.pdf)continue;
       const target=Math.max(1,Math.min(state.pdf.numPages,Number(p.live_page||1)));
@@ -143,10 +149,11 @@ async function setupLiveChannel(){
   ch.on('broadcast',{event:'teacher-view'},({payload})=>queueRemoteTeacherView(payload));
   ch.on('broadcast',{event:'page-content'},({payload})=>applyRemotePageContent(payload));
   ch.on('broadcast',{event:'board-content'},({payload})=>applyRemoteBoardContent(payload));
+  ch.on('broadcast',{event:'image-content'},({payload})=>applyRemoteImageContent(payload));
   ch.on('broadcast',{event:'content-refresh'},({payload})=>{
     if(TEACHER||payload?.doc_id!==state.doc?.id)return;
     state.lastRealtimeAt=Date.now();
-    if(payload.kind==='images')loadImages().catch(()=>{});
+    if(payload.kind==='images')loadImages(true).catch(()=>{});
     else loadStudentBoards().catch(()=>{});
   });
   ch.on('broadcast',{event:'student-ready'},()=>{
@@ -154,12 +161,13 @@ async function setupLiveChannel(){
     broadcastTeacherView();
     broadcastPageContent();
     broadcastBoardContent();
+    broadcastImageContent();
   });
   ch.subscribe((status)=>{
     state.liveReady=status==='SUBSCRIBED';
     if(!TEACHER)refreshStudentHookUi();
     if(status==='SUBSCRIBED'){
-      if(TEACHER){broadcastTeacherView();broadcastPageContent();broadcastBoardContent();}
+      if(TEACHER){broadcastTeacherView();broadcastPageContent();broadcastBoardContent();broadcastImageContent();}
       else ch.send({type:'broadcast',event:'student-ready',payload:{doc_id:state.doc.id,sent_at:Date.now()}}).catch(()=>{});
     }
   });
@@ -317,8 +325,94 @@ function applyRemoteBoardContent(payload){
   else state.boards.push({...b});
   renderStudentNotes();
   const active=state.boards.find(x=>Number(x.board_no)===Number(state.boardNo));
-  if(els.studentImageTitle)els.studentImageTitle.textContent=`Teacher images${active?.title?' — '+active.title:''}`;
+  if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery';
   state.lastRealtimeAt=Date.now();
+}
+
+
+function currentImage(){ return state.images[state.imageIndex] || null; }
+function setActiveSurface(surface){
+  state.activeSurface = surface === 'image' ? 'image' : 'pdf';
+  if(state.activeSurface==='pdf'){
+    els.canvasWrap?.classList.toggle('hand',state.tool==='hand');
+    els.imageCanvasWrap?.classList.remove('hand');
+  }else{
+    els.canvasWrap?.classList.remove('hand');
+    els.imageCanvasWrap?.classList.toggle('hand',state.tool==='hand');
+  }
+}
+function cloneMapValue(map, key){ return clone(map.get(key) || []); }
+function drawImageOverlay(){
+  const c=els.imageOverlayCanvas;if(!c)return;const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
+  for(const o of state.imageObjects)drawObject(ctx,o,c,TEACHER&&state.activeSurface==='image'&&o.id===state.selectedId);
+}
+function scheduleImageOverlayRedraw(){ if(state.rafPending)return;state.rafPending=true;requestAnimationFrame(()=>{state.rafPending=false;drawImageOverlay();}); }
+function rememberImage(){ if(!TEACHER) return; state.imageUndo.push(clone(state.imageObjects)); if(state.imageUndo.length>70)state.imageUndo.shift(); state.imageRedo=[]; }
+function applyImageHistory(from,to){ const item=from.pop(); if(!item)return; to.push(clone(state.imageObjects)); state.imageObjects=clone(item); const img=currentImage(); if(img) state.imageAnnoCache.set(img.id,clone(state.imageObjects)); state.selectedId=null; drawImageOverlay(); saveImageAnnotationsSoon(20); }
+function drawImageLiveSegment(o,a,b){ const c=els.imageOverlayCanvas;if(!c)return;const ctx=c.getContext('2d'),ratio=strokeRatio(c);ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=o.color;ctx.lineWidth=Math.max(1,(o.width||4)*ratio);ctx.globalAlpha=o.type==='highlighter'?.28:1;ctx.beginPath();ctx.moveTo(a.x*c.width,a.y*c.height);ctx.lineTo(b.x*c.width,b.y*c.height);ctx.stroke();ctx.restore(); }
+function syncImageCanvasSize(){
+  const wrap=els.imageCanvasWrap,img=els.boardImage,c=els.imageOverlayCanvas;if(!wrap||!img||!c)return;
+  if(img.classList.contains('hidden')||!img.getBoundingClientRect().width){ c.width=1;c.height=1; c.style.width='1px'; c.style.height='1px'; drawImageOverlay(); return; }
+  const rect=img.getBoundingClientRect(); const dpr=Math.max(1, window.devicePixelRatio||1);
+  wrap.style.width = rect.width + 'px'; wrap.style.height = rect.height + 'px';
+  c.width=Math.max(1,Math.floor(rect.width*dpr)); c.height=Math.max(1,Math.floor(rect.height*dpr));
+  c.style.width=rect.width+'px'; c.style.height=rect.height+'px';
+  drawImageOverlay();
+}
+function waitForImageReady(img){ return new Promise(resolve=>{ if(!img) return resolve(); if(img.complete && img.naturalWidth) return resolve(); const done=()=>{img.removeEventListener('load',done);img.removeEventListener('error',done);resolve();}; img.addEventListener('load',done,{once:true}); img.addEventListener('error',done,{once:true});}); }
+async function loadCurrentImageAnnotations(force=false){
+  const image=currentImage();
+  if(!image){ state.imageObjects=[]; state.imageUndo=[]; state.imageRedo=[]; state.selectedId=null; drawImageOverlay(); return; }
+  if(!force && state.imageAnnoCache.has(image.id)){ state.imageObjects=cloneMapValue(state.imageAnnoCache,image.id); state.imageUndo=[]; state.imageRedo=[]; state.selectedId=null; drawImageOverlay(); return; }
+  try{
+    const data=await api('image-annotations',{image:image.id});
+    state.imageObjects=Array.isArray(data.objects)?data.objects:[];
+    state.imageAnnoCache.set(image.id, clone(state.imageObjects));
+    state.imageUndo=[]; state.imageRedo=[]; state.selectedId=null; drawImageOverlay();
+  }catch(e){ setStatus('Image annotation load failed: '+e.message); }
+}
+function saveImageAnnotationsSoon(delay=100){
+  scheduleImageContentBroadcast(Math.min(35,Math.max(0,delay)));
+  clearTimeout(state.imageSaveTimer);
+  state.imageSaveTimer=setTimeout(()=>saveImageAnnotationsNow().catch(e=>setStatus(e.message)),delay);
+}
+async function saveImageAnnotationsNow(){
+  if(!TEACHER||!state.doc) return; const image=currentImage(); if(!image)return;
+  const objects=clone(state.imageObjects); setStatus('Saving image notes…');
+  const r=await fetch(apiUrl('save-image-annotations',{image:image.id}),{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({objects})});
+  const data=await r.json().catch(()=>({})); if(!r.ok) return setStatus(data.error||'Image annotation save failed.');
+  state.imageAnnoCache.set(image.id, clone(objects)); setStatus('Image notes saved');
+}
+function broadcastImageContent(){
+  if(!TEACHER||!state.liveReady||!state.liveChannel||!state.doc)return; const image=currentImage(); if(!image)return;
+  state.liveChannel.send({type:'broadcast',event:'image-content',payload:{doc_id:state.doc.id,image_id:image.id,objects:clone(state.imageObjects),sent_at:Date.now()}}).catch(()=>{});
+}
+function scheduleImageContentBroadcast(delay=60){ if(!TEACHER)return; clearTimeout(state.imageBroadcastTimer); state.imageBroadcastTimer=setTimeout(()=>broadcastImageContent(),delay); }
+function applyRemoteImageContent(payload){
+  if(TEACHER||!payload||payload.doc_id!==state.doc?.id)return; if(!state.images.length)return;
+  const image=currentImage(); if(!image||payload.image_id!==image.id)return;
+  state.imageObjects=Array.isArray(payload.objects)?clone(payload.objects):[];
+  state.imageAnnoCache.set(image.id, clone(state.imageObjects));
+  drawImageOverlay(); state.lastRealtimeAt=Date.now();
+}
+function imagePointerDown(evt){
+  if(!TEACHER||!els.imageOverlayCanvas||!currentImage())return;
+  setActiveSurface('image');
+  const p=norm(evt,els.imageOverlayCanvas); if(state.tool==='hand') return;
+  if(state.tool==='select'){ const hit=hitTest(state.imageObjects,p); state.selectedId=hit?.id||null; drawImageOverlay(); if(hit){ rememberImage(); state.pointer={id:hit.id,last:p,kind:'move',surface:'image'}; els.imageOverlayCanvas.setPointerCapture?.(evt.pointerId);} return; }
+  if(state.tool==='eraser'){ const hit=hitTest(state.imageObjects,p); if(hit){ rememberImage(); state.imageObjects=state.imageObjects.filter(x=>x.id!==hit.id); const img=currentImage(); if(img)state.imageAnnoCache.set(img.id,clone(state.imageObjects)); state.selectedId=null; drawImageOverlay(); saveImageAnnotationsSoon(20);} return; }
+  if(state.tool==='text'){ const text=prompt('Text to add:'); if(!text)return; rememberImage(); state.imageObjects.push({id:uuid(),type:'text',x:p.x,y:p.y,text:text.slice(0,600),color:curColor(),fontSize:Math.max(14,curWidth()*5)}); const img=currentImage(); if(img)state.imageAnnoCache.set(img.id,clone(state.imageObjects)); drawImageOverlay(); saveImageAnnotationsSoon(20); return; }
+  rememberImage(); let o; if(state.tool==='pen'||state.tool==='highlighter')o={id:uuid(),type:state.tool,points:[p],color:curColor(),width:curWidth()}; else o={id:uuid(),type:state.tool,x1:p.x,y1:p.y,x2:p.x,y2:p.y,color:curColor(),width:curWidth()}; state.imageObjects.push(o); state.pointer={id:o.id,last:p,kind:'draw',surface:'image'}; els.imageOverlayCanvas.setPointerCapture?.(evt.pointerId);
+}
+function imagePointerMove(evt){
+  if(!TEACHER||!state.pointer||state.pointer.surface!=='image')return;
+  const p=norm(evt,els.imageOverlayCanvas),o=state.imageObjects.find(x=>x.id===state.pointer.id); if(!o)return;
+  if(state.pointer.kind==='move'){ const dx=p.x-state.pointer.last.x,dy=p.y-state.pointer.last.y; translateObject(o,dx,dy); state.pointer.last=p; scheduleImageOverlayRedraw(); return; }
+  if(o.type==='pen'||o.type==='highlighter'){ const last=o.points[o.points.length-1]; if(Math.hypot(p.x-last.x,p.y-last.y)>.0012){ o.points.push(p); drawImageLiveSegment(o,last,p);} return; }
+  o.x2=p.x; o.y2=p.y; scheduleImageOverlayRedraw();
+}
+function imagePointerUp(){
+  if(!TEACHER||!state.pointer||state.pointer.surface!=='image')return; state.pointer=null; const img=currentImage(); if(img)state.imageAnnoCache.set(img.id,clone(state.imageObjects)); scheduleImageOverlayRedraw(); saveImageAnnotationsSoon(10);
 }
 
 function clone(v){ return JSON.parse(JSON.stringify(v)); }
@@ -425,14 +519,15 @@ function drawLiveSegment(o,a,b){ const c=els.overlayCanvas,ctx=c.getContext('2d'
 function scheduleOverlayRedraw(){ if(state.rafPending)return;state.rafPending=true;requestAnimationFrame(()=>{state.rafPending=false;drawOverlay();}); }
 function remember(){ if(!TEACHER)return;state.undo.push(clone(state.pageObjects));if(state.undo.length>70)state.undo.shift();state.redo=[]; }
 function applyHistory(from,to){ const item=from.pop();if(!item)return;to.push(clone(state.pageObjects));state.pageObjects=clone(item);state.pageCache.set(state.pageNo,clone(state.pageObjects));state.selectedId=null;drawOverlay();savePageSoon(20); }
-function setTool(tool){state.tool=tool;state.selectedId=null;els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand');drawOverlay();}
+function setTool(tool){state.tool=tool;state.selectedId=null;els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand'&&state.activeSurface==='pdf');els.imageCanvasWrap?.classList.toggle('hand',tool==='hand'&&state.activeSurface==='image');drawOverlay();drawImageOverlay();}
 function pointerDown(evt){
   if(!TEACHER)return;
+  setActiveSurface('pdf');
   const p=norm(evt,els.overlayCanvas);
   if(state.tool==='hand')return;
   if(state.tool==='select'){
     const hit=hitTest(state.pageObjects,p);state.selectedId=hit?.id||null;drawOverlay();
-    if(hit){remember();state.pointer={id:hit.id,last:p,kind:'move'};els.overlayCanvas.setPointerCapture?.(evt.pointerId);}return;
+    if(hit){remember();state.pointer={id:hit.id,last:p,kind:'move',surface:'pdf'};els.overlayCanvas.setPointerCapture?.(evt.pointerId);}return;
   }
   if(state.tool==='eraser'){
     const hit=hitTest(state.pageObjects,p);if(hit){remember();state.pageObjects=state.pageObjects.filter(x=>x.id!==hit.id);state.pageCache.set(state.pageNo,clone(state.pageObjects));state.selectedId=null;drawOverlay();savePageSoon(20);}return;
@@ -442,10 +537,10 @@ function pointerDown(evt){
   }
   remember();
   let o;if(state.tool==='pen'||state.tool==='highlighter')o={id:uuid(),type:state.tool,points:[p],color:curColor(),width:curWidth()};else o={id:uuid(),type:state.tool,x1:p.x,y1:p.y,x2:p.x,y2:p.y,color:curColor(),width:curWidth()};
-  state.pageObjects.push(o);state.pointer={id:o.id,last:p,kind:'draw'};els.overlayCanvas.setPointerCapture?.(evt.pointerId);
+  state.pageObjects.push(o);state.pointer={id:o.id,last:p,kind:'draw',surface:'pdf'};els.overlayCanvas.setPointerCapture?.(evt.pointerId);
 }
 function pointerMove(evt){
-  if(!TEACHER||!state.pointer)return;
+  if(!TEACHER||!state.pointer||state.pointer.surface!=='pdf')return;
   const p=norm(evt,els.overlayCanvas),o=state.pageObjects.find(x=>x.id===state.pointer.id);if(!o)return;
   if(state.pointer.kind==='move'){const dx=p.x-state.pointer.last.x,dy=p.y-state.pointer.last.y;translateObject(o,dx,dy);state.pointer.last=p;scheduleOverlayRedraw();return;}
   if(o.type==='pen'||o.type==='highlighter'){
@@ -454,7 +549,7 @@ function pointerMove(evt){
   o.x2=p.x;o.y2=p.y;scheduleOverlayRedraw();
 }
 function pointerUp(){
-  if(!TEACHER||!state.pointer)return;state.pointer=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));scheduleOverlayRedraw();savePageSoon(10);
+  if(!TEACHER||!state.pointer||state.pointer.surface!=='pdf')return;state.pointer=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));scheduleOverlayRedraw();savePageSoon(10);
 }
 async function savePageNow(){
   if(!TEACHER||!state.doc)return;const pageNo=state.pageNo,objects=clone(state.pageObjects);setStatus('Saving…');
@@ -493,7 +588,7 @@ async function loadTeacherBoards(){
   await ensurePermanentBoard();
   const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
   state.boards=(data||[]).filter(b=>boardAppliesToPage(b,state.pageNo));
-  ensureApplicableBoard();loadBoardText();await loadImages();
+  ensureApplicableBoard();loadBoardText();await loadImages(); if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery';
 }
 function renderStudentNotes(){
   if(TEACHER) return;
@@ -519,20 +614,13 @@ function renderStudentNotes(){
 }
 function chooseStudentImageBoard(preferred=state.liveBoardNo){
   if(TEACHER) return;
-  // Preserve the student's current image-board choice whenever it still belongs
-  // to the permanent board or the current PDF page.
-  const current=state.boards.find(b=>Number(b.board_no)===Number(state.boardNo));
-  const preferredBoard=state.boards.find(b=>Number(b.board_no)===Number(preferred));
-  const permanent=firstPermanentBoard();
-  const firstPageBoard=state.boards.find(b=>!b.is_permanent && b.board_scope==='page' && Number(b.page_no)===Number(state.pageNo));
-  const chosen=current||preferredBoard||firstPageBoard||permanent||state.boards[0];
-  if(chosen) state.boardNo=Number(chosen.board_no);
-  if(els.studentImageTitle) els.studentImageTitle.textContent=`Teacher images${chosen?.title?' — '+chosen.title:''}`;
+  if(els.studentImageTitle) els.studentImageTitle.textContent='Teacher gallery';
 }
+
 async function loadStudentBoards(){
   const r=await api('boards',{page:state.pageNo});state.boards=r.boards||[];
   if(!state.boards.length)state.boards=[{board_no:1,title:'Permanent board',text_content:'',board_scope:'global',page_no:1,is_permanent:true}];
-  renderStudentNotes();chooseStudentImageBoard();await loadImages();
+  renderStudentNotes(); if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery'; await loadImages();
 }
 function loadBoardText(){
   const b=boardByNo()||firstPermanentBoard()||{board_no:state.boardNo,title:`Board ${state.boardNo}`,text_content:'',board_scope:'global',is_permanent:true};
@@ -568,24 +656,24 @@ async function addBoard(){
 async function deleteBoard(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
   if(b.is_permanent)return setStatus('The permanent board cannot be deleted.');
-  if(!confirm(`Delete “${b.title||'this page board'}” and its pasted images?`))return;
+  if(!confirm(`Delete “${b.title||'this page board'}”?`))return;
   setStatus('Deleting board…');
-  const {data:imgs,error:imgRead}=await supabase.from('snt_pdf_board_images').select('id,storage_path').eq('document_id',state.doc.id).eq('board_no',b.board_no);if(imgRead)return setStatus(imgRead.message);
-  for(const image of imgs||[]){const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});if(!r.ok){const d=await r.json().catch(()=>({}));return setStatus(d.error||'Could not delete a board image.');}}
   const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',b.board_no);if(error)return setStatus('Could not delete board: '+error.message);
-  state.liveImageId=null;await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await loadImages();await pushLiveState();broadcastContentRefresh('boards');setStatus('Board deleted');
+  await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await loadImages();await pushLiveState();broadcastContentRefresh('boards');setStatus('Board deleted');
 }
 async function moveBoard(delta){
   const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo)),n=i+delta;if(n<0||n>=arr.length)return;
   state.boardNo=arr[n];state.imageZoom=1;loadBoardText();await loadImages();if(TEACHER)await pushLiveState();else persistStudentState();
 }
 
-async function loadImages(){
+async function loadImages(preferLive=false){
   try{
-    if(TEACHER){const {data,error}=await supabase.from('snt_pdf_board_images').select('id,board_no,image_name,mime_type,file_size,sort_no,created_at').eq('document_id',state.doc.id).eq('board_no',state.boardNo).order('sort_no');if(error)throw error;state.images=data||[];}
-    else{const r=await api('images',{board:state.boardNo});state.images=r.images||[];}
-    if(state.liveImageId){const idx=state.images.findIndex(x=>x.id===state.liveImageId);if(idx>=0)state.imageIndex=idx;}
-    state.imageIndex=Math.max(0,Math.min(state.imageIndex,Math.max(0,state.images.length-1)));await showCurrentImage();
+    if(TEACHER){const {data,error}=await supabase.from('snt_pdf_board_images').select('id,board_no,image_name,mime_type,file_size,sort_no,created_at').eq('document_id',state.doc.id).order('sort_no');if(error)throw error;state.images=data||[];}
+    else{const r=await api('images',{gallery:1});state.images=r.images||[];}
+    if(state.liveImageId){const idx=state.images.findIndex(x=>x.id===state.liveImageId);if(idx>=0&&(preferLive||!TEACHER))state.imageIndex=idx;}
+    state.imageIndex=Math.max(0,Math.min(state.imageIndex,Math.max(0,state.images.length-1)));
+    if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery';
+    await showCurrentImage();
   }catch(e){setStatus('Image load failed: '+e.message);}
 }
 async function fetchImageBlobUrl(image){
@@ -594,8 +682,8 @@ async function fetchImageBlobUrl(image){
 }
 async function showCurrentImage(){
   const count=state.images.length;if(els.imageCounter)els.imageCounter.textContent=count?`${state.imageIndex+1} / ${count}`:'0 / 0';if(els.imagePrev)els.imagePrev.disabled=!count||state.imageIndex<=0;if(els.imageNext)els.imageNext.disabled=!count||state.imageIndex>=count-1;if(els.deleteImageBtn)els.deleteImageBtn.disabled=!count;
-  if(!count){els.boardImage?.classList.add('hidden');if(els.imageStage){const span=els.imageStage.querySelector('span');if(span)span.classList.remove('hidden');}state.liveImageId=null;applyImageZoom();return;}
-  const image=state.images[state.imageIndex];try{const url=await fetchImageBlobUrl(image);els.boardImage.src=url;els.boardImage.alt=image.image_name||'Teacher pasted image';els.boardImage.classList.remove('hidden');const span=els.imageStage?.querySelector('span');if(span)span.classList.add('hidden');state.liveImageId=image.id;applyImageZoom();if(TEACHER)await pushLiveState();persistStudentState();}catch(e){setStatus(e.message);}
+  if(!count){els.boardImage?.classList.add('hidden');els.imageCanvasWrap?.classList.add('hidden');els.imageStage?.classList.remove('has-image');if(els.imageStage){const span=els.imageStage.querySelector('span');if(span)span.classList.remove('hidden');}state.liveImageId=null;state.imageObjects=[];drawImageOverlay();applyImageZoom();if(TEACHER)await pushLiveState();return;}
+  const image=state.images[state.imageIndex];try{const url=await fetchImageBlobUrl(image);els.boardImage.src=url;els.boardImage.alt=image.image_name||'Teacher gallery image';await waitForImageReady(els.boardImage);els.boardImage.classList.remove('hidden');els.imageCanvasWrap?.classList.remove('hidden');els.imageStage?.classList.add('has-image');const span=els.imageStage?.querySelector('span');if(span)span.classList.add('hidden');state.liveImageId=image.id;applyImageZoom();syncImageCanvasSize();await loadCurrentImageAnnotations();if(TEACHER)await pushLiveState();persistStudentState();}catch(e){setStatus(e.message);}
 }
 function applyImageZoom(){
   const z=Math.max(.25,Math.min(4,Number(state.imageZoom||1)));state.imageZoom=z;
@@ -604,6 +692,7 @@ function applyImageZoom(){
     else{els.boardImage.style.transform='';els.boardImage.style.width='';els.boardImage.style.height='';els.boardImage.style.maxWidth='100%';els.boardImage.style.maxHeight='100%';}
   }
   if(els.imageZoomReset)els.imageZoomReset.textContent=`${Math.round(z*100)}%`;
+  requestAnimationFrame(()=>syncImageCanvasSize());
 }
 function changeImageZoom(delta){state.imageZoom=Math.max(.25,Math.min(4,state.imageZoom+delta));applyImageZoom();}
 function resetImageZoom(){state.imageZoom=1;applyImageZoom();}
@@ -611,10 +700,10 @@ function resetImageZoom(){state.imageZoom=1;applyImageZoom();}
 async function moveImage(delta){if(!state.images.length)return;const n=state.imageIndex+delta;if(n<0||n>=state.images.length)return;state.imageIndex=n;state.imageZoom=1;await showCurrentImage();}
 async function uploadImage(file){
   if(!TEACHER||!file)return;if(file.size>8*1024*1024)return setStatus('Image must be under 8 MB.');if(!/^image\//.test(file.type))return setStatus('Choose an image file.');setStatus('Uploading image…');
-  const r=await fetch(apiUrl('upload-image',{board:state.boardNo}),{method:'POST',headers:authHeaders({'Content-Type':file.type,'x-file-name':encodeURIComponent(file.name||'Pasted image')}),body:file});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Image upload failed.');await loadImages();state.imageIndex=Math.max(0,state.images.length-1);await showCurrentImage();broadcastContentRefresh('images');setStatus('Image saved');
+  const r=await fetch(apiUrl('upload-image',{gallery:1}),{method:'POST',headers:authHeaders({'Content-Type':file.type,'x-file-name':encodeURIComponent(file.name||'Pasted image')}),body:file});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Image upload failed.');await loadImages();state.imageIndex=Math.max(0,state.images.length-1);await showCurrentImage();broadcastContentRefresh('images');broadcastImageContent();setStatus('Image saved');
 }
 async function deleteCurrentImage(){
-  if(!TEACHER||!state.images.length)return;const image=state.images[state.imageIndex];if(!confirm('Delete this pasted image?'))return;const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Delete failed.');const old=state.imageBlobUrls.get(image.id);if(old)URL.revokeObjectURL(old);state.imageBlobUrls.delete(image.id);state.imageIndex=Math.max(0,state.imageIndex-1);await loadImages();broadcastContentRefresh('images');setStatus('Image deleted');
+  if(!TEACHER||!state.images.length)return;const image=state.images[state.imageIndex];if(!confirm('Delete this pasted image?'))return;const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Delete failed.');const old=state.imageBlobUrls.get(image.id);if(old)URL.revokeObjectURL(old);state.imageBlobUrls.delete(image.id);state.imageAnnoCache.delete(image.id);state.imageIndex=Math.max(0,state.imageIndex-1);await loadImages();broadcastContentRefresh('images');broadcastImageContent();setStatus('Image deleted');
 }
 async function pushLiveState(){
   if(!TEACHER||!state.doc||!state.pdf)return;
@@ -675,6 +764,7 @@ async function pollStudentSync(){
     }
 
     state.revision=newRevision;
+    if(previousLiveImage!==state.liveImageId){ await loadImages(true); }
     if(!wasFollowing&&following)setStatus('HOOKED: teacher controls page and can recenter you. You can still pan, zoom and resize your notes.');
     else if(wasFollowing&&!following)setStatus(state.teacherOnline?'Unhooked: you can browse pages freely.':'Teacher disconnected: you can browse pages freely.');
   }catch{}
@@ -819,14 +909,15 @@ function bindCommon(){
   els.boardPrev?.addEventListener('click',()=>moveBoard(-1));els.boardNext?.addEventListener('click',()=>moveBoard(1));
   // Student note/image browsing is always local, whether hooked or unhooked.
   els.imagePrev?.addEventListener('click',()=>moveImage(-1));els.imageNext?.addEventListener('click',()=>moveImage(1));
-  window.addEventListener('resize',()=>{clearTimeout(window.__sntResize);window.__sntResize=setTimeout(()=>state.fit&&state.pdf&&renderPage(state.pageNo),180);});
+  window.addEventListener('resize',()=>{clearTimeout(window.__sntResize);window.__sntResize=setTimeout(()=>{state.fit&&state.pdf&&renderPage(state.pageNo); syncImageCanvasSize();},180);});
   bindLayout();
   bindStudentPinch();
 }
 function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.overlayCanvas.addEventListener('pointerdown',pointerDown);els.overlayCanvas.addEventListener('pointermove',pointerMove);els.overlayCanvas.addEventListener('pointerup',pointerUp);els.overlayCanvas.addEventListener('pointercancel',pointerUp);
-  els.undoBtn?.addEventListener('click',()=>applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);
+  els.imageOverlayCanvas?.addEventListener('pointerdown',imagePointerDown);els.imageOverlayCanvas?.addEventListener('pointermove',imagePointerMove);els.imageOverlayCanvas?.addEventListener('pointerup',imagePointerUp);els.imageOverlayCanvas?.addEventListener('pointercancel',imagePointerUp);
+  els.undoBtn?.addEventListener('click',()=>state.activeSurface==='image'?applyImageHistory(state.imageUndo,state.imageRedo):applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>state.activeSurface==='image'?applyImageHistory(state.imageRedo,state.imageUndo):applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);
   els.boardText?.addEventListener('input',()=>{rememberBoardSelection();saveBoardSoon();});
   els.boardText?.addEventListener('keyup',rememberBoardSelection);
   els.boardText?.addEventListener('mouseup',rememberBoardSelection);
@@ -864,14 +955,14 @@ function bindTeacher(){
   },{passive:true});
   document.addEventListener('keydown',e=>{
     if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?applyHistory(state.redo,state.undo):applyHistory(state.undo,state.redo);}
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();applyHistory(state.redo,state.undo);}
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){const o=state.pageObjects.find(x=>x.id===state.selectedId);if(o)state.clipboard=clone(o);}
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'&&state.clipboard){e.preventDefault();remember();const o=clone(state.clipboard);o.id=uuid();translateObject(o,.025,.025);state.pageObjects.push(o);state.selectedId=o.id;state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();savePageSoon(20);}
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault(); if(state.activeSurface==='image') e.shiftKey?applyImageHistory(state.imageRedo,state.imageUndo):applyImageHistory(state.imageUndo,state.imageRedo); else e.shiftKey?applyHistory(state.redo,state.undo):applyHistory(state.undo,state.redo);}
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault(); state.activeSurface==='image'?applyImageHistory(state.imageRedo,state.imageUndo):applyHistory(state.redo,state.undo);}
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){ const list=state.activeSurface==='image'?state.imageObjects:state.pageObjects; const o=list.find(x=>x.id===state.selectedId); if(o)state.clipboard={surface:state.activeSurface, object:clone(o)}; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'&&state.clipboard){e.preventDefault(); const clipObj=clone(state.clipboard.object||state.clipboard); if(state.activeSurface==='image'){ rememberImage(); const o=clipObj; o.id=uuid(); translateObject(o,.025,.025); state.imageObjects.push(o); state.selectedId=o.id; const img=currentImage(); if(img)state.imageAnnoCache.set(img.id,clone(state.imageObjects)); drawImageOverlay(); saveImageAnnotationsSoon(20); } else { remember(); const o=clipObj; o.id=uuid(); translateObject(o,.025,.025); state.pageObjects.push(o); state.selectedId=o.id; state.pageCache.set(state.pageNo,clone(state.pageObjects)); drawOverlay(); savePageSoon(20);} }
     if(e.key==='Delete'||e.key==='Backspace')deleteSelectedObject();
   });
 }
-function deleteSelectedObject(){if(!state.selectedId)return;remember();state.pageObjects=state.pageObjects.filter(x=>x.id!==state.selectedId);state.selectedId=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();savePageSoon(20);}
+function deleteSelectedObject(){if(!state.selectedId)return;if(state.activeSurface==='image'){rememberImage();state.imageObjects=state.imageObjects.filter(x=>x.id!==state.selectedId);state.selectedId=null;const img=currentImage();if(img)state.imageAnnoCache.set(img.id,clone(state.imageObjects));drawImageOverlay();saveImageAnnotationsSoon(20);}else{remember();state.pageObjects=state.pageObjects.filter(x=>x.id!==state.selectedId);state.selectedId=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();savePageSoon(20);}}
 
 async function exportAnnotatedPdf(){
   if(!TEACHER||!window.PDFLib)return;
