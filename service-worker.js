@@ -1,5 +1,5 @@
-// v3.4 student-control cache refresh
-const CACHE = 'snt-pdf-static-v3-4';
+// v3.5 student-control cache refresh
+const CACHE = 'snt-pdf-static-v3-5';
 const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./config.js'];
 
 self.addEventListener('install', event => {

@@ -66,7 +66,7 @@ body[data-mode=student] .topbar{min-height:51px}body[data-mode=student] .student
 .student-resize-bar:hover,.student-resize-bar.dragging{background:#9fd4c3}
 .follow-hint{display:none;flex:0 0 auto;padding:4px 8px;text-align:center;background:#edf8f4;border-bottom:1px solid #b9dfd3;color:#176247;font-size:.72rem;font-weight:700}
 body.student-following .follow-hint{display:block}
-body.student-following .pdf-scroller{touch-action:none;overflow:auto;overscroll-behavior:contain}
+body.student-following .pdf-scroller{touch-action:none;overflow:hidden;overscroll-behavior:contain;scrollbar-width:none}
 body.student-following .canvas-wrap{user-select:none;-webkit-user-select:none}
 .teacher-images .image-stage img{transition:transform .08s linear;transform-origin:center center}
 .teacher-images .image-stage{scrollbar-gutter:stable both-edges}
@@ -113,7 +113,7 @@ body.student-following .follow-hint{display:block}
 /* v3.4 — student hook + independently resizable/scrollable notes blocks */
 body[data-mode=student] .student-board{
   display:grid;
-  grid-template-rows:auto var(--student-permanent-h) 16px var(--student-page-h) 16px minmax(110px,1fr);
+  grid-template-rows:auto minmax(72px,var(--student-permanent-h)) 20px minmax(72px,var(--student-page-h)) 20px minmax(72px,1fr);
   overflow:hidden;
   min-height:0;
 }
@@ -154,8 +154,8 @@ body[data-mode=student] .student-image-section .image-stage{
   -webkit-overflow-scrolling:touch;
 }
 .note-block-splitter{
-  height:16px!important;
-  min-height:16px!important;
+  height:20px!important;
+  min-height:20px!important;
   display:grid;
   place-items:center;
   background:#d6e0e6;
@@ -199,8 +199,19 @@ body.student-following #fitPage{
     --student-page-h:112px;
   }
   body[data-mode=student] .student-board{
-    grid-template-rows:auto var(--student-permanent-h) 18px var(--student-page-h) 18px minmax(90px,1fr);
+    grid-template-rows:auto minmax(64px,var(--student-permanent-h)) 22px minmax(64px,var(--student-page-h)) 22px minmax(64px,1fr);
   }
-  .note-block-splitter{height:18px!important;min-height:18px!important}
+  .note-block-splitter{height:22px!important;min-height:22px!important}
   .note-block-splitter span{font-size:.53rem;padding:1px 5px}
 }
+
+
+/* v3.5 — true realtime hook. Teacher owns only the PDF viewport; student note areas stay local. */
+body.student-following .pdf-scroller::-webkit-scrollbar{display:none}
+body[data-mode=student] .student-block-scroll,
+body[data-mode=student] .page-notes-list{touch-action:pan-y}
+body[data-mode=student] .student-image-section .image-stage{touch-action:pan-x pan-y}
+body[data-mode=student] #studentSplit,
+body[data-mode=student] #studentPermanentSplit,
+body[data-mode=student] #studentPageSplit{user-select:none;-webkit-user-select:none}
+body[data-mode=student] #liveText.following{background:#e8f6f1;border-radius:999px;padding:1px 6px}

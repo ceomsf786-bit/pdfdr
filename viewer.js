@@ -31,7 +31,9 @@ const state = {
   pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), revision:0,
   tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
-  boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:1, pinch:null, scrollSyncTimer:null
+  boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:1, pinch:null, scrollSyncTimer:null,
+  liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
+  remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0
 };
 
 function showError(message){
@@ -53,6 +55,99 @@ function updateHookButton(){
   els.hookStudentsBtn.classList.toggle('unhooked',!state.studentHooked);
   els.hookStudentsBtn.setAttribute('aria-pressed',String(state.studentHooked));
   els.hookStudentsBtn.title=state.studentHooked?'Students follow your PDF page and position. Their zoom and notes panel stay under their own control.':'Students can browse pages freely. Your annotations still update.';
+}
+
+function refreshStudentHookUi(){
+  if(TEACHER) return;
+  const following=studentFollowActive();
+  document.body.classList.toggle('student-following',following);
+  if(els.liveText){
+    if(following) els.liveText.textContent=state.liveReady?'⚡ Hooked live':'↻ Hooked backup';
+    else els.liveText.textContent=state.teacherOnline?'Teacher online • free view':'Teacher offline • free view';
+    els.liveText.classList.toggle('following',following);
+  }
+  if(els.prevPage) els.prevPage.disabled=following||state.pageNo<=1;
+  if(els.nextPage) els.nextPage.disabled=following||state.pageNo>=(state.pdf?.numPages||1);
+  if(els.pageInput) els.pageInput.disabled=following;
+}
+function clamp01(v, fallback=.5){
+  const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):fallback;
+}
+function liveTopic(){
+  if(!state.doc?.id) return null;
+  const secret=TEACHER?state.doc.student_token:state.token;
+  if(!secret) return null;
+  return `snt-pdf-live:${state.doc.id}:${String(secret).slice(0,24)}`;
+}
+function captureTeacherView(){
+  if(!TEACHER||!state.doc||!state.pdf) return null;
+  const fullW=Math.max(1,els.pdfScroller.scrollWidth),fullH=Math.max(1,els.pdfScroller.scrollHeight);
+  const maxX=Math.max(0,fullW-els.pdfScroller.clientWidth),maxY=Math.max(0,fullH-els.pdfScroller.clientHeight);
+  const centerX=maxX>0?clamp01((els.pdfScroller.scrollLeft+els.pdfScroller.clientWidth/2)/fullW):.5;
+  const centerY=maxY>0?clamp01((els.pdfScroller.scrollTop+els.pdfScroller.clientHeight/2)/fullH):.5;
+  const scrollRatio=maxY>0?clamp01(els.pdfScroller.scrollTop/maxY,0):0;
+  state.liveScrollRatio=scrollRatio;state.liveCenterX=centerX;state.liveCenterY=centerY;state.liveZoom=state.scale;
+  return {
+    doc_id:state.doc.id,
+    live_page:state.pageNo,
+    live_center_x:centerX,
+    live_center_y:centerY,
+    live_scroll_ratio:scrollRatio,
+    student_hooked:state.studentHooked,
+    sent_at:Date.now(),
+    seq:++state.liveSeq
+  };
+}
+function broadcastTeacherView(){
+  if(!TEACHER||!state.liveReady||!state.liveChannel) return;
+  const payload=captureTeacherView();if(!payload)return;
+  state.liveChannel.send({type:'broadcast',event:'teacher-view',payload}).catch(()=>{});
+}
+function scheduleTeacherBroadcast(delay=45){
+  if(!TEACHER)return;
+  clearTimeout(state.broadcastTimer);
+  state.broadcastTimer=setTimeout(()=>broadcastTeacherView(),delay);
+}
+function queueRemoteTeacherView(payload){
+  if(TEACHER||!payload||payload.doc_id!==state.doc?.id)return;
+  const ts=Number(payload.sent_at||0),seq=Number(payload.seq||0);
+  if(ts<state.remoteViewTs||(ts===state.remoteViewTs&&seq<=state.remoteViewSeq))return;
+  state.remoteViewTs=ts;state.remoteViewSeq=seq;state.lastRealtimeAt=Date.now();
+  state.remoteViewPending=payload;
+  drainRemoteTeacherView().catch(()=>{});
+}
+async function drainRemoteTeacherView(){
+  if(TEACHER||state.remoteViewBusy)return;
+  state.remoteViewBusy=true;
+  try{
+    while(state.remoteViewPending){
+      const p=state.remoteViewPending;state.remoteViewPending=null;
+      state.studentHooked=p.student_hooked!==false;
+      state.liveCenterX=clamp01(p.live_center_x,.5);
+      state.liveCenterY=clamp01(p.live_center_y,.5);
+      refreshStudentHookUi();
+      if(!state.studentHooked||!state.pdf)continue;
+      const target=Math.max(1,Math.min(state.pdf.numPages,Number(p.live_page||1)));
+      if(target!==state.pageNo)await renderPage(target,true);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>applyTeacherCenter()));
+    }
+  }finally{state.remoteViewBusy=false;}
+}
+async function setupLiveChannel(){
+  const topic=liveTopic();if(!topic)return;
+  if(state.liveChannel){try{await supabase.removeChannel(state.liveChannel);}catch{};state.liveChannel=null;state.liveReady=false;}
+  const ch=supabase.channel(topic,{config:{broadcast:{self:false,ack:false}}});
+  state.liveChannel=ch;
+  ch.on('broadcast',{event:'teacher-view'},({payload})=>queueRemoteTeacherView(payload));
+  ch.on('broadcast',{event:'student-ready'},()=>{if(TEACHER)broadcastTeacherView();});
+  ch.subscribe((status)=>{
+    state.liveReady=status==='SUBSCRIBED';
+    if(!TEACHER)refreshStudentHookUi();
+    if(status==='SUBSCRIBED'){
+      if(TEACHER)broadcastTeacherView();
+      else ch.send({type:'broadcast',event:'student-ready',payload:{doc_id:state.doc.id,sent_at:Date.now()}}).catch(()=>{});
+    }
+  });
 }
 function clone(v){ return JSON.parse(JSON.stringify(v)); }
 function randomToken(){ const a=new Uint8Array(32); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
@@ -336,18 +431,17 @@ async function deleteCurrentImage(){
 }
 async function pushLiveState(){
   if(!TEACHER||!state.doc||!state.pdf)return;
-  const maxX=Math.max(0,els.pdfScroller.scrollWidth-els.pdfScroller.clientWidth),maxY=Math.max(0,els.pdfScroller.scrollHeight-els.pdfScroller.clientHeight);
-  const centerX=maxX>0?Math.max(0,Math.min(1,(els.pdfScroller.scrollLeft+els.pdfScroller.clientWidth/2)/Math.max(1,els.pdfScroller.scrollWidth))):0.5;
-  const centerY=maxY>0?Math.max(0,Math.min(1,(els.pdfScroller.scrollTop+els.pdfScroller.clientHeight/2)/Math.max(1,els.pdfScroller.scrollHeight))):0.5;
-  const scrollRatio=maxY>0?Math.max(0,Math.min(1,els.pdfScroller.scrollTop/maxY)):0;
-  state.liveScrollRatio=scrollRatio;state.liveCenterX=centerX;state.liveCenterY=centerY;state.liveZoom=state.scale;
-  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:scrollRatio,live_center_x:centerX,live_center_y:centerY,live_zoom:state.scale,student_hooked:state.studentHooked,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
+  const view=captureTeacherView();if(!view)return;
+  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:view.live_scroll_ratio,live_center_x:view.live_center_x,live_center_y:view.live_center_y,live_zoom:state.scale,student_hooked:state.studentHooked,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
 }
 async function setStudentHooked(next){
   if(!TEACHER||!state.doc)return;
   state.studentHooked=!!next;updateHookButton();
-  setStatus(state.studentHooked?'Students hooked — they follow your page and position':'Students unhooked — they can browse pages freely');
+  setStatus(state.studentHooked?'Students hooked — LIVE control on':'Students unhooked — they can browse pages freely');
+  // Broadcast FIRST so the student reacts immediately; database persistence follows as backup.
+  broadcastTeacherView();
   await pushLiveState();
+  broadcastTeacherView();
 }
 function applyTeacherCenter(){
   if(TEACHER||!studentFollowActive()||!state.pdf)return;
@@ -362,41 +456,31 @@ async function pollStudentSync(){
   try{
     const wasFollowing=studentFollowActive(),s=await api('sync'),previousLiveImage=state.liveImageId,previousLiveBoard=state.liveBoardNo,newRevision=Number(s.revision||0),revisionChanged=newRevision!==state.revision;
     state.teacherOnline=!!s.teacher_online;
-    state.studentHooked=s.student_hooked!==false;
+    const realtimeFresh=Date.now()-state.lastRealtimeAt<2500;
+    // Realtime is authoritative while fresh. Polling is the automatic backup path.
+    if(!realtimeFresh){
+      state.studentHooked=s.student_hooked!==false;
+      state.liveScrollRatio=Math.max(0,Math.min(1,Number(s.live_scroll_ratio||0)));
+      state.liveCenterX=Math.max(0,Math.min(1,Number(s.live_center_x??.5)));
+      state.liveCenterY=Math.max(0,Math.min(1,Number(s.live_center_y??.5)));
+    }
     state.liveBoardNo=Math.max(1,Number(s.live_board_no||1));
     state.liveImageId=s.live_image_id||null;
-    state.liveScrollRatio=Math.max(0,Math.min(1,Number(s.live_scroll_ratio||0)));
-    state.liveCenterX=Math.max(0,Math.min(1,Number(s.live_center_x??.5)));
-    state.liveCenterY=Math.max(0,Math.min(1,Number(s.live_center_y??.5)));
     state.liveZoom=Math.max(.25,Math.min(5,Number(s.live_zoom||1)));
 
     const following=studentFollowActive();
-    document.body.classList.toggle('student-following',following);
-    if(els.liveText){
-      els.liveText.textContent=following
-        ? (state.teacherOnline?'🔗 Hooked to teacher':'🔗 Hooked • holding teacher view')
-        : (state.teacherOnline?'Teacher online • free view':'Teacher offline • free view');
-      els.liveText.classList.toggle('following',following);
-    }
-    if(els.prevPage)els.prevPage.disabled=following||state.pageNo<=1;
-    if(els.nextPage)els.nextPage.disabled=following||state.pageNo>=state.pdf.numPages;
-    if(els.pageInput)els.pageInput.disabled=following;
+    refreshStudentHookUi();
 
     if(following){
-      const targetPage=Math.max(1,Number(s.live_page||1));
-      if(targetPage!==state.pageNo){
-        await renderPage(targetPage,true);
-      }else if(revisionChanged){
+      if(!realtimeFresh){
+        const targetPage=Math.max(1,Number(s.live_page||1));
+        if(targetPage!==state.pageNo)await renderPage(targetPage,true);
+        requestAnimationFrame(()=>applyTeacherCenter());
+      }
+      if(revisionChanged){
         await loadStudentPageData();
         await loadStudentBoards();
       }
-
-      // Hook controls only the PDF page + teacher position.
-      // Notes visibility, note block sizes and image browsing stay under student control.
-      if(revisionChanged){
-        await loadStudentBoards();
-      }
-      requestAnimationFrame(()=>applyTeacherCenter());
     }else if(revisionChanged){
       await loadStudentPageData();
       await loadStudentBoards();
@@ -426,7 +510,7 @@ async function renderPage(n,forceData=false){
     els.canvasWrap.style.width=`${viewport.width}px`;els.canvasWrap.style.height=`${viewport.height}px`;
     const ctx=els.pdfCanvas.getContext('2d',{alpha:false});await page.render({canvasContext:ctx,viewport,transform:dpr===1?null:[dpr,0,0,dpr,0,0]}).promise;
     state.pageNo=n;if(pageChanged){els.pdfScroller.scrollTop=0;els.pdfScroller.scrollLeft=0;if(els.toolRail)els.toolRail.style.transform='translateY(0)';}els.pageInput.value=String(n);els.pageCount.textContent=`/ ${state.pdf.numPages}`;els.prevPage.disabled=studentFollowActive()||n<=1;els.nextPage.disabled=studentFollowActive()||n>=state.pdf.numPages;
-    if(TEACHER){if(pageChanged)pushLiveState().catch(()=>{});await loadTeacherPageData(forceData);if(pageChanged||!state.boards.length)await loadTeacherBoards();await pushLiveState();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
+    if(TEACHER){if(pageChanged){broadcastTeacherView();pushLiveState().catch(()=>{});}await loadTeacherPageData(forceData);if(pageChanged||!state.boards.length)await loadTeacherBoards();await pushLiveState();broadcastTeacherView();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
     else{await loadStudentPageData();if(pageChanged||!state.boards.length)await loadStudentBoards();persistStudentState();if(studentFollowActive())requestAnimationFrame(()=>applyTeacherCenter());}
   }finally{state.rendering=false;if(state.pendingPage!==null){const p=state.pendingPage;state.pendingPage=null;renderPage(p);}}
 }
@@ -530,7 +614,10 @@ function bindTeacher(){
   els.resetLayoutBtn?.addEventListener('click',resetLayout);
   els.pdfScroller?.addEventListener('scroll',()=>{
     if(els.toolRail&&window.innerWidth>650)els.toolRail.style.transform=`translateY(${-els.pdfScroller.scrollTop}px)`;
-    clearTimeout(state.scrollSyncTimer);state.scrollSyncTimer=setTimeout(()=>pushLiveState().catch(()=>{}),110);
+    if(TEACHER){
+      scheduleTeacherBroadcast(45);
+      clearTimeout(state.scrollSyncTimer);state.scrollSyncTimer=setTimeout(()=>pushLiveState().catch(()=>{}),650);
+    }
   },{passive:true});
   document.addEventListener('keydown',e=>{
     if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
@@ -580,7 +667,7 @@ async function createDocumentFromForm(){
   const row={owner_id:user.id,title,drive_file_id:fileId,drive_share_url:url,student_token:randomToken(),student_link_enabled:true,student_hooked:true,live_board_no:1};const {data,error}=await supabase.from('snt_pdf_documents').insert(row).select('*').single();if(error){setStatus(error.message);return;}await supabase.from('snt_pdf_boards').insert({document_id:data.id,board_no:1,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});els.newTitle.value='';els.newDriveUrl.value='';els.libraryDialog.close();await openTeacherDocument(data);
 }
 async function openTeacherDocument(doc){
-  state.doc=doc;state.pageNo=Math.max(1,Number(doc.live_page||1));state.boardNo=Math.max(1,Number(doc.live_board_no||1));state.liveBoardNo=state.boardNo;state.studentHooked=doc.student_hooked!==false;state.liveImageId=doc.live_image_id||null;state.liveCenterX=Math.max(0,Math.min(1,Number(doc.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(doc.live_center_y??.5)));state.liveZoom=Number(doc.live_zoom||1);state.revision=Number(doc.revision||0);els.docTitle.textContent=doc.title;els.contextText.textContent='Teacher • fast local drawing • autosave';updateHookButton();history.replaceState(null,'',`./teacher.html?id=${encodeURIComponent(doc.id)}`);await loadTeacherBoards();await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(true);teacherHeartbeat();clearInterval(state.heartbeatTimer);state.heartbeatTimer=setInterval(teacherHeartbeat,Number(CONFIG.TEACHER_HEARTBEAT_MS||5000));
+  state.doc=doc;state.pageNo=Math.max(1,Number(doc.live_page||1));state.boardNo=Math.max(1,Number(doc.live_board_no||1));state.liveBoardNo=state.boardNo;state.studentHooked=doc.student_hooked!==false;state.liveImageId=doc.live_image_id||null;state.liveCenterX=Math.max(0,Math.min(1,Number(doc.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(doc.live_center_y??.5)));state.liveZoom=Number(doc.live_zoom||1);state.revision=Number(doc.revision||0);els.docTitle.textContent=doc.title;els.contextText.textContent='Teacher • live student hook • autosave';updateHookButton();history.replaceState(null,'',`./teacher.html?id=${encodeURIComponent(doc.id)}`);await loadTeacherBoards();await loadPdf();await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(true);teacherHeartbeat();clearInterval(state.heartbeatTimer);state.heartbeatTimer=setInterval(teacherHeartbeat,Number(CONFIG.TEACHER_HEARTBEAT_MS||5000));
 }
 async function handleDriveQuery(){const params=new URLSearchParams(location.search),drive=params.get('drive');if(!drive)return false;const fileId=extractDriveId(drive);if(!fileId)return false;const {data}=await supabase.from('snt_pdf_documents').select('*').eq('drive_file_id',fileId).limit(1).maybeSingle();if(data){await openTeacherDocument(data);return true;}els.newDriveUrl.value=params.get('source')||`https://drive.google.com/file/d/${fileId}/view`;els.newTitle.value=params.get('title')||'Drive PDF';await openLibrary();return true;}
 async function bootTeacher(){
@@ -599,8 +686,8 @@ async function bootStudent(){
   try{
     const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.studentHooked=init.document.student_hooked!==false;state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=state.liveBoardNo;els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
     if(studentFollowActive()){state.pageNo=Math.max(1,Number(init.document.live_page||1));state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.boardNo=state.liveBoardNo;}
-    setBoardOpen(true);await loadPdf();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');
-    state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||650));await pollStudentSync();
+    setBoardOpen(true);await loadPdf();await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');refreshStudentHookUi();
+    state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||900));await pollStudentSync();
   }catch(e){showError(e.message);}
 }
 
