@@ -24,8 +24,8 @@ body{overflow:hidden}button,input,textarea{font:inherit}.hidden{display:none!imp
 .splitter{background:#d9e1e8;position:relative;z-index:35;touch-action:none}.board-panel>.horizontal-splitter{flex:0 0 6px;min-height:6px}.splitter:hover,.splitter.dragging{background:#93b9ad}.vertical-splitter{cursor:col-resize}.horizontal-splitter{cursor:row-resize}
 .pdf-area{min-width:0;min-height:0;display:flex;flex-direction:column;background:#cfd5db;overflow:hidden}
 .pdf-controls{flex:0 0 auto;padding:5px 7px;background:#fff;border-bottom:1px solid var(--line)}.page-box{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:.82rem}.page-box input{width:58px;border:1px solid var(--line);border-radius:7px;padding:4px}.spacer{flex:1}
-.pdf-scroller{overflow:auto;min-height:0;flex:1;padding:12px;display:flex;justify-content:center;align-items:flex-start;touch-action:pan-x pan-y;overscroll-behavior:contain;scrollbar-gutter:stable both-edges}
-.canvas-wrap{position:relative;background:#fff;box-shadow:var(--shadow);flex:0 0 auto}.canvas-wrap canvas{display:block}.canvas-wrap #overlayCanvas{position:absolute;inset:0;touch-action:none}.canvas-wrap.hand #overlayCanvas{pointer-events:none}
+.pdf-scroller{overflow:auto;min-height:0;flex:1;padding:12px;display:flex;justify-content:flex-start;align-items:flex-start;touch-action:pan-x pan-y;overscroll-behavior:contain;scrollbar-gutter:stable both-edges}
+.canvas-wrap{position:relative;background:#fff;box-shadow:var(--shadow);flex:0 0 auto;margin-left:auto;margin-right:auto}.canvas-wrap canvas{display:block}.canvas-wrap #overlayCanvas{position:absolute;inset:0;touch-action:none}.canvas-wrap.hand #overlayCanvas{pointer-events:none}
 .board-panel{background:#fff;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .teacher-board{border-left:1px solid var(--line)}.student-board{border-top:1px solid var(--line)}
 .board-head{flex:0 0 auto;padding:7px 9px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}.board-head>div:first-child{display:flex;flex-direction:column;min-width:0}.board-head small{color:var(--muted)}
@@ -215,3 +215,21 @@ body[data-mode=student] #studentSplit,
 body[data-mode=student] #studentPermanentSplit,
 body[data-mode=student] #studentPageSplit{user-select:none;-webkit-user-select:none}
 body[data-mode=student] #liveText.following{background:#e8f6f1;border-radius:999px;padding:1px 6px}
+
+
+/* v3.6 — rich teacher notes + live content */
+.rich-text-toolbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+  padding:5px 7px;border-bottom:1px solid var(--line);background:#f8fafb;
+}
+.rich-format-label{display:flex;align-items:center;gap:4px;font-size:.68rem;color:var(--muted);font-weight:700}
+.rich-format-label input[type=color]{width:32px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.rich-format-select{height:30px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);padding:2px 5px}
+.board-rich-editor{position:relative;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
+.board-rich-editor:empty:before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}
+.board-rich-editor:focus{box-shadow:inset 0 0 0 2px #cce8df}
+.student-note-text font,.page-note-body font{line-height:1.25}
+
+/* Student PDF one-finger panning + true horizontal access at high zoom */
+body[data-mode=student] #overlayCanvas{pointer-events:none}
+body[data-mode=student] .canvas-wrap{touch-action:none}

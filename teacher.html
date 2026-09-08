@@ -92,7 +92,30 @@
             <button id="boardDelete" class="btn compact danger-text">Delete</button>
           </div>
         </div>
-        <textarea id="boardText" class="board-text" placeholder="Type or paste teacher notes here…"></textarea>
+
+        <div class="rich-text-toolbar" aria-label="Teacher note formatting">
+          <button id="boardUnderline" class="btn compact rich-format-btn" type="button" title="Underline selected text"><u>U</u></button>
+          <label class="rich-format-label">Font
+            <select id="boardFontSize" class="rich-format-select" title="Selected text size">
+              <option value="2">Small</option>
+              <option value="3" selected>Normal</option>
+              <option value="4">Large</option>
+              <option value="5">XL</option>
+              <option value="6">XXL</option>
+              <option value="7">Huge</option>
+            </select>
+          </label>
+          <label class="rich-format-label">Text
+            <input id="boardTextColor" type="color" value="#1f2937" title="Text colour">
+          </label>
+          <label class="rich-format-label">Highlight
+            <input id="boardHighlightColor" type="color" value="#fff59d" title="Highlight colour">
+          </label>
+          <button id="boardClearFormat" class="btn compact" type="button" title="Remove formatting from selected text">Clear</button>
+        </div>
+
+        <div id="boardText" class="board-text board-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true" data-placeholder="Type or paste teacher notes here…"></div>
+
         <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
         <section id="imageSection" class="image-section teacher-images" tabindex="0">
           <div class="image-toolbar">

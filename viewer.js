@@ -23,7 +23,8 @@ const els = {
   toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'),
   loginPanel:$('loginPanel'), loginForm:$('loginForm'), emailInput:$('emailInput'), passwordInput:$('passwordInput'), signOutBtn:$('signOutBtn'),
   libraryBtn:$('libraryBtn'), libraryDialog:$('libraryDialog'), libraryList:$('libraryList'), createDocBtn:$('createDocBtn'), newTitle:$('newTitle'), newDriveUrl:$('newDriveUrl'), copyStudentLink:$('copyStudentLink'), hookStudentsBtn:$('hookStudentsBtn'), exportPdf:$('exportPdf'),
-  fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn')
+  fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn'),
+  boardUnderline:$('boardUnderline'), boardFontSize:$('boardFontSize'), boardTextColor:$('boardTextColor'), boardHighlightColor:$('boardHighlightColor'), boardClearFormat:$('boardClearFormat')
 };
 
 const state = {
@@ -33,7 +34,8 @@ const state = {
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
   boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:1, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
-  remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0
+  remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
+  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null
 };
 
 function showError(message){
@@ -139,16 +141,186 @@ async function setupLiveChannel(){
   const ch=supabase.channel(topic,{config:{broadcast:{self:false,ack:false}}});
   state.liveChannel=ch;
   ch.on('broadcast',{event:'teacher-view'},({payload})=>queueRemoteTeacherView(payload));
-  ch.on('broadcast',{event:'student-ready'},()=>{if(TEACHER)broadcastTeacherView();});
+  ch.on('broadcast',{event:'page-content'},({payload})=>applyRemotePageContent(payload));
+  ch.on('broadcast',{event:'board-content'},({payload})=>applyRemoteBoardContent(payload));
+  ch.on('broadcast',{event:'content-refresh'},({payload})=>{
+    if(TEACHER||payload?.doc_id!==state.doc?.id)return;
+    state.lastRealtimeAt=Date.now();
+    if(payload.kind==='images')loadImages().catch(()=>{});
+    else loadStudentBoards().catch(()=>{});
+  });
+  ch.on('broadcast',{event:'student-ready'},()=>{
+    if(!TEACHER)return;
+    broadcastTeacherView();
+    broadcastPageContent();
+    broadcastBoardContent();
+  });
   ch.subscribe((status)=>{
     state.liveReady=status==='SUBSCRIBED';
     if(!TEACHER)refreshStudentHookUi();
     if(status==='SUBSCRIBED'){
-      if(TEACHER)broadcastTeacherView();
+      if(TEACHER){broadcastTeacherView();broadcastPageContent();broadcastBoardContent();}
       else ch.send({type:'broadcast',event:'student-ready',payload:{doc_id:state.doc.id,sent_at:Date.now()}}).catch(()=>{});
     }
   });
 }
+
+const RICH_MARKER='<!--snt-rich-->';
+
+function sanitizeRichHtml(input=''){
+  const template=document.createElement('template');
+  template.innerHTML=String(input||'');
+  const allowed=new Set(['DIV','P','BR','SPAN','U','B','STRONG','I','EM','FONT']);
+  const safeColor=v=>/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]{3,20})$/i.test(String(v||'').trim());
+  const safeSize=v=>/^(?:[1-7]|\d{1,2}(?:\.\d+)?px|xx-small|x-small|small|medium|large|x-large|xx-large)$/i.test(String(v||'').trim());
+
+  const cleanNode=node=>{
+    for(const child of [...node.childNodes]){
+      if(child.nodeType!==1)continue;
+      if(!allowed.has(child.tagName)){
+        const frag=document.createDocumentFragment();
+        while(child.firstChild)frag.appendChild(child.firstChild);
+        child.replaceWith(frag);
+        cleanNode(node);
+        continue;
+      }
+      const oldStyle=child.getAttribute('style')||'';
+      const oldColor=child.getAttribute('color')||'';
+      const oldSize=child.getAttribute('size')||'';
+      for(const a of [...child.attributes])child.removeAttribute(a.name);
+
+      if(child.tagName==='FONT'){
+        if(safeColor(oldColor))child.setAttribute('color',oldColor.trim());
+        if(/^[1-7]$/.test(oldSize.trim()))child.setAttribute('size',oldSize.trim());
+      }
+
+      const kept=[];
+      for(const decl of oldStyle.split(';')){
+        const i=decl.indexOf(':');if(i<0)continue;
+        const prop=decl.slice(0,i).trim().toLowerCase(),val=decl.slice(i+1).trim();
+        if((prop==='color'||prop==='background-color')&&safeColor(val))kept.push(`${prop}:${val}`);
+        else if(prop==='font-size'&&safeSize(val))kept.push(`${prop}:${val}`);
+        else if(prop==='text-decoration'&&/^underline$/i.test(val))kept.push('text-decoration:underline');
+        else if(prop==='font-weight'&&/^(bold|[5-9]00)$/i.test(val))kept.push(`font-weight:${val}`);
+        else if(prop==='font-style'&&/^italic$/i.test(val))kept.push('font-style:italic');
+      }
+      if(kept.length)child.setAttribute('style',kept.join(';'));
+      cleanNode(child);
+    }
+  };
+  cleanNode(template.content);
+  return template.innerHTML;
+}
+function storedBoardHtml(raw=''){
+  const v=String(raw||'');
+  if(v.startsWith(RICH_MARKER))return sanitizeRichHtml(v.slice(RICH_MARKER.length));
+  return null;
+}
+function setBoardEditorContent(raw=''){
+  if(!els.boardText)return;
+  const rich=storedBoardHtml(raw);
+  if(rich!==null)els.boardText.innerHTML=rich;
+  else els.boardText.textContent=String(raw||'');
+}
+function getBoardEditorStorage(){
+  if(!els.boardText)return '';
+  const html=sanitizeRichHtml(els.boardText.innerHTML);
+  const probe=document.createElement('div');probe.innerHTML=html;
+  const plain=(probe.innerText||probe.textContent||'').replace(/\u00a0/g,' ').trim();
+  return plain ? RICH_MARKER+html : '';
+}
+function renderStoredBoardContent(el,raw,emptyText=''){
+  if(!el)return;
+  const v=String(raw||'');
+  if(!v.trim()){el.textContent=emptyText;return;}
+  const rich=storedBoardHtml(v);
+  if(rich!==null)el.innerHTML=rich;
+  else el.textContent=v;
+}
+function rememberBoardSelection(){
+  if(!TEACHER||!els.boardText)return;
+  const sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  const r=sel.getRangeAt(0);
+  const node=r.commonAncestorContainer.nodeType===1?r.commonAncestorContainer:r.commonAncestorContainer.parentNode;
+  if(node===els.boardText||els.boardText.contains(node))state.boardSelectionRange=r.cloneRange();
+}
+function restoreBoardSelection(){
+  if(!state.boardSelectionRange||!els.boardText)return;
+  const sel=window.getSelection();if(!sel)return;
+  sel.removeAllRanges();sel.addRange(state.boardSelectionRange);
+}
+function applyBoardFormat(command,value=null){
+  if(!TEACHER||!els.boardText)return;
+  els.boardText.focus();restoreBoardSelection();
+  try{
+    document.execCommand('styleWithCSS',false,true);
+    document.execCommand(command,false,value);
+  }catch{}
+  rememberBoardSelection();
+  saveBoardSoon();
+}
+function currentBoardRealtimePayload(){
+  if(!TEACHER||!state.doc)return null;
+  const b=boardByNo();if(!b)return null;
+  return {
+    doc_id:state.doc.id,
+    board:{
+      board_no:Number(state.boardNo),
+      title:(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,
+      text_content:getBoardEditorStorage(),
+      board_scope:b.is_permanent?'global':'page',
+      page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),
+      is_permanent:!!b.is_permanent
+    },
+    sent_at:Date.now()
+  };
+}
+function broadcastPageContent(){
+  if(!TEACHER||!state.liveReady||!state.liveChannel||!state.doc)return;
+  state.liveChannel.send({
+    type:'broadcast',event:'page-content',
+    payload:{doc_id:state.doc.id,page_no:Number(state.pageNo),objects:clone(state.pageObjects),sent_at:Date.now()}
+  }).catch(()=>{});
+}
+function schedulePageContentBroadcast(delay=25){
+  if(!TEACHER)return;
+  clearTimeout(state.pageBroadcastTimer);
+  state.pageBroadcastTimer=setTimeout(()=>broadcastPageContent(),delay);
+}
+function broadcastBoardContent(){
+  if(!TEACHER||!state.liveReady||!state.liveChannel)return;
+  const payload=currentBoardRealtimePayload();if(!payload)return;
+  state.liveChannel.send({type:'broadcast',event:'board-content',payload}).catch(()=>{});
+}
+function scheduleBoardContentBroadcast(delay=70){
+  if(!TEACHER)return;
+  clearTimeout(state.boardBroadcastTimer);
+  state.boardBroadcastTimer=setTimeout(()=>broadcastBoardContent(),delay);
+}
+function broadcastContentRefresh(kind='boards'){
+  if(!TEACHER||!state.liveReady||!state.liveChannel||!state.doc)return;
+  state.liveChannel.send({type:'broadcast',event:'content-refresh',payload:{doc_id:state.doc.id,kind,sent_at:Date.now()}}).catch(()=>{});
+}
+function applyRemotePageContent(payload){
+  if(TEACHER||!payload||payload.doc_id!==state.doc?.id)return;
+  if(Number(payload.page_no)!==Number(state.pageNo))return;
+  state.pageObjects=Array.isArray(payload.objects)?clone(payload.objects):[];
+  drawOverlay();
+  state.lastRealtimeAt=Date.now();
+}
+function applyRemoteBoardContent(payload){
+  if(TEACHER||!payload||payload.doc_id!==state.doc?.id||!payload.board)return;
+  const b=payload.board;
+  if(!(b.is_permanent===true||(b.board_scope==='page'&&Number(b.page_no)===Number(state.pageNo))))return;
+  const i=state.boards.findIndex(x=>Number(x.board_no)===Number(b.board_no));
+  if(i>=0)state.boards[i]={...state.boards[i],...b};
+  else state.boards.push({...b});
+  renderStudentNotes();
+  const active=state.boards.find(x=>Number(x.board_no)===Number(state.boardNo));
+  if(els.studentImageTitle)els.studentImageTitle.textContent=`Teacher images${active?.title?' — '+active.title:''}`;
+  state.lastRealtimeAt=Date.now();
+}
+
 function clone(v){ return JSON.parse(JSON.stringify(v)); }
 function randomToken(){ const a=new Uint8Array(32); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 function uuid(){
@@ -289,7 +461,11 @@ async function savePageNow(){
   const {error}=await supabase.from('snt_pdf_pages').upsert({document_id:state.doc.id,page_no:pageNo,objects,updated_at:new Date().toISOString()},{onConflict:'document_id,page_no'});
   if(error){setStatus('Save failed: '+error.message);return;}state.pageCache.set(pageNo,objects);setStatus('Saved');
 }
-function savePageSoon(delay=100){clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>savePageNow().catch(e=>setStatus(e.message)),delay);}
+function savePageSoon(delay=100){
+  schedulePageContentBroadcast(Math.min(30,Math.max(0,delay)));
+  clearTimeout(state.saveTimer);
+  state.saveTimer=setTimeout(()=>savePageNow().catch(e=>setStatus(e.message)),delay);
+}
 async function loadTeacherPageData(force=false){
   if(!force&&state.pageCache.has(state.pageNo)){state.pageObjects=clone(state.pageCache.get(state.pageNo));state.selectedId=null;drawOverlay();return;}
   const {data,error}=await supabase.from('snt_pdf_pages').select('objects').eq('document_id',state.doc.id).eq('page_no',state.pageNo).maybeSingle();if(error)throw error;
@@ -323,14 +499,21 @@ function renderStudentNotes(){
   if(TEACHER) return;
   const permanent=firstPermanentBoard();
   const pageBoards=state.boards.filter(b=>!b.is_permanent && b.board_scope==='page' && Number(b.page_no)===Number(state.pageNo));
-  if(els.permanentTitle) els.permanentTitle.textContent=permanent?.title||'Permanent board';
-  if(els.permanentText) els.permanentText.textContent=(permanent?.text_content||'').trim()||'No permanent notes yet.';
-  if(els.pageNotesBadge) els.pageNotesBadge.textContent=`Page ${state.pageNo}`;
+  if(els.permanentTitle)els.permanentTitle.textContent=permanent?.title||'Permanent board';
+  renderStoredBoardContent(els.permanentText,permanent?.text_content||'','No permanent notes yet.');
+  if(els.pageNotesBadge)els.pageNotesBadge.textContent=`Page ${state.pageNo}`;
   if(els.pageNotesList){
+    els.pageNotesList.replaceChildren();
     if(!pageBoards.length){
-      els.pageNotesList.innerHTML='<div class="page-note-empty">No page notes for this page yet.</div>';
+      const empty=document.createElement('div');empty.className='page-note-empty';empty.textContent='No page notes for this page yet.';els.pageNotesList.appendChild(empty);
     }else{
-      els.pageNotesList.innerHTML=pageBoards.map(b=>`<article class="page-note-entry"><strong>${escapeHtml(b.title||`Page ${state.pageNo} notes`)}</strong><div class="page-note-body">${escapeHtml((b.text_content||'').trim()||'No typed note on this board.')}</div></article>`).join('');
+      for(const b of pageBoards){
+        const article=document.createElement('article');article.className='page-note-entry';
+        const title=document.createElement('strong');title.textContent=b.title||`Page ${state.pageNo} notes`;
+        const body=document.createElement('div');body.className='page-note-body';
+        renderStoredBoardContent(body,b.text_content||'','No typed note on this board.');
+        article.append(title,body);els.pageNotesList.appendChild(article);
+      }
     }
   }
 }
@@ -354,7 +537,7 @@ async function loadStudentBoards(){
 function loadBoardText(){
   const b=boardByNo()||firstPermanentBoard()||{board_no:state.boardNo,title:`Board ${state.boardNo}`,text_content:'',board_scope:'global',is_permanent:true};
   state.boardNo=Number(b.board_no||1);
-  if(els.boardText)els.boardText.value=b.text_content||'';
+  setBoardEditorContent(b.text_content||'');
   if(els.boardTitleInput)els.boardTitleInput.value=b.title||`Board ${state.boardNo}`;
   if(els.boardTitleDisplay)els.boardTitleDisplay.textContent=b.title||'Teacher Notepad';
   if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':`PDF page ${b.page_no||state.pageNo}`;
@@ -364,19 +547,23 @@ function loadBoardText(){
 }
 async function saveBoardNow(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
-  const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=els.boardText?.value||'';
+  const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=getBoardEditorStorage();
   const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:b.is_permanent?'global':'page',page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
   const {error}=await supabase.from('snt_pdf_boards').upsert(row,{onConflict:'document_id,page_no,board_no'});if(error){setStatus('Notepad save failed: '+error.message);return;}
-  b.title=title;b.text_content=text;setStatus('Notepad saved');
+  b.title=title;b.text_content=text;broadcastBoardContent();setStatus('Notepad saved');
 }
-function saveBoardSoon(){clearTimeout(state.boardTextTimer);state.boardTextTimer=setTimeout(()=>saveBoardNow().catch(e=>setStatus(e.message)),180);}
+function saveBoardSoon(){
+  scheduleBoardContentBroadcast(60);
+  clearTimeout(state.boardTextTimer);
+  state.boardTextTimer=setTimeout(()=>saveBoardNow().catch(e=>setStatus(e.message)),180);
+}
 async function addBoard(){
   if(!TEACHER||!state.doc)return;setStatus('Adding page board…');
   const {data:all,error:readError}=await supabase.from('snt_pdf_boards').select('board_no').eq('document_id',state.doc.id).order('board_no');if(readError)return setStatus(readError.message);
   const next=Math.max(0,...(all||[]).map(x=>Number(x.board_no)))+1,title=`Page ${state.pageNo} board`;
   const {data,error}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title,text_content:'',objects:[],board_scope:'page',page_no:state.pageNo,is_permanent:false}).select('board_no').single();
   if(error)return setStatus('Could not add board: '+error.message);
-  state.boardNo=Number(data.board_no);await loadTeacherBoards();state.boardNo=Number(data.board_no);loadBoardText();await loadImages();await pushLiveState();setStatus('Page board added');
+  state.boardNo=Number(data.board_no);await loadTeacherBoards();state.boardNo=Number(data.board_no);loadBoardText();await loadImages();await pushLiveState();broadcastContentRefresh('boards');broadcastBoardContent();setStatus('Page board added');
 }
 async function deleteBoard(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
@@ -386,7 +573,7 @@ async function deleteBoard(){
   const {data:imgs,error:imgRead}=await supabase.from('snt_pdf_board_images').select('id,storage_path').eq('document_id',state.doc.id).eq('board_no',b.board_no);if(imgRead)return setStatus(imgRead.message);
   for(const image of imgs||[]){const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});if(!r.ok){const d=await r.json().catch(()=>({}));return setStatus(d.error||'Could not delete a board image.');}}
   const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',b.board_no);if(error)return setStatus('Could not delete board: '+error.message);
-  state.liveImageId=null;await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await loadImages();await pushLiveState();setStatus('Board deleted');
+  state.liveImageId=null;await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await loadImages();await pushLiveState();broadcastContentRefresh('boards');setStatus('Board deleted');
 }
 async function moveBoard(delta){
   const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo)),n=i+delta;if(n<0||n>=arr.length)return;
@@ -424,10 +611,10 @@ function resetImageZoom(){state.imageZoom=1;applyImageZoom();}
 async function moveImage(delta){if(!state.images.length)return;const n=state.imageIndex+delta;if(n<0||n>=state.images.length)return;state.imageIndex=n;state.imageZoom=1;await showCurrentImage();}
 async function uploadImage(file){
   if(!TEACHER||!file)return;if(file.size>8*1024*1024)return setStatus('Image must be under 8 MB.');if(!/^image\//.test(file.type))return setStatus('Choose an image file.');setStatus('Uploading image…');
-  const r=await fetch(apiUrl('upload-image',{board:state.boardNo}),{method:'POST',headers:authHeaders({'Content-Type':file.type,'x-file-name':encodeURIComponent(file.name||'Pasted image')}),body:file});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Image upload failed.');await loadImages();state.imageIndex=Math.max(0,state.images.length-1);await showCurrentImage();setStatus('Image saved');
+  const r=await fetch(apiUrl('upload-image',{board:state.boardNo}),{method:'POST',headers:authHeaders({'Content-Type':file.type,'x-file-name':encodeURIComponent(file.name||'Pasted image')}),body:file});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Image upload failed.');await loadImages();state.imageIndex=Math.max(0,state.images.length-1);await showCurrentImage();broadcastContentRefresh('images');setStatus('Image saved');
 }
 async function deleteCurrentImage(){
-  if(!TEACHER||!state.images.length)return;const image=state.images[state.imageIndex];if(!confirm('Delete this pasted image?'))return;const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Delete failed.');const old=state.imageBlobUrls.get(image.id);if(old)URL.revokeObjectURL(old);state.imageBlobUrls.delete(image.id);state.imageIndex=Math.max(0,state.imageIndex-1);await loadImages();setStatus('Image deleted');
+  if(!TEACHER||!state.images.length)return;const image=state.images[state.imageIndex];if(!confirm('Delete this pasted image?'))return;const r=await fetch(apiUrl('delete-image',{image:image.id}),{method:'POST',headers:authHeaders()});const data=await r.json().catch(()=>({}));if(!r.ok)return setStatus(data.error||'Delete failed.');const old=state.imageBlobUrls.get(image.id);if(old)URL.revokeObjectURL(old);state.imageBlobUrls.delete(image.id);state.imageIndex=Math.max(0,state.imageIndex-1);await loadImages();broadcastContentRefresh('images');setStatus('Image deleted');
 }
 async function pushLiveState(){
   if(!TEACHER||!state.doc||!state.pdf)return;
@@ -456,9 +643,10 @@ async function pollStudentSync(){
   try{
     const wasFollowing=studentFollowActive(),s=await api('sync'),previousLiveImage=state.liveImageId,previousLiveBoard=state.liveBoardNo,newRevision=Number(s.revision||0),revisionChanged=newRevision!==state.revision;
     state.teacherOnline=!!s.teacher_online;
-    const realtimeFresh=Date.now()-state.lastRealtimeAt<2500;
-    // Realtime is authoritative while fresh. Polling is the automatic backup path.
-    if(!realtimeFresh){
+    const realtimeEstablished=state.liveReady&&state.lastRealtimeAt>0;
+    // Once realtime has actually delivered teacher data, idle time must NOT
+    // snap the student's own pan back every few seconds.
+    if(!realtimeEstablished){
       state.studentHooked=s.student_hooked!==false;
       state.liveScrollRatio=Math.max(0,Math.min(1,Number(s.live_scroll_ratio||0)));
       state.liveCenterX=Math.max(0,Math.min(1,Number(s.live_center_x??.5)));
@@ -472,7 +660,7 @@ async function pollStudentSync(){
     refreshStudentHookUi();
 
     if(following){
-      if(!realtimeFresh){
+      if(!realtimeEstablished){
         const targetPage=Math.max(1,Number(s.live_page||1));
         if(targetPage!==state.pageNo)await renderPage(targetPage,true);
         requestAnimationFrame(()=>applyTeacherCenter());
@@ -487,7 +675,7 @@ async function pollStudentSync(){
     }
 
     state.revision=newRevision;
-    if(!wasFollowing&&following)setStatus('HOOKED: teacher controls PDF page + position. Your zoom, notes show/hide and resize bars remain yours.');
+    if(!wasFollowing&&following)setStatus('HOOKED: teacher controls page and can recenter you. You can still pan, zoom and resize your notes.');
     else if(wasFollowing&&!following)setStatus(state.teacherOnline?'Unhooked: you can browse pages freely.':'Teacher disconnected: you can browse pages freely.');
   }catch{}
 }
@@ -510,7 +698,7 @@ async function renderPage(n,forceData=false){
     els.canvasWrap.style.width=`${viewport.width}px`;els.canvasWrap.style.height=`${viewport.height}px`;
     const ctx=els.pdfCanvas.getContext('2d',{alpha:false});await page.render({canvasContext:ctx,viewport,transform:dpr===1?null:[dpr,0,0,dpr,0,0]}).promise;
     state.pageNo=n;if(pageChanged){els.pdfScroller.scrollTop=0;els.pdfScroller.scrollLeft=0;if(els.toolRail)els.toolRail.style.transform='translateY(0)';}els.pageInput.value=String(n);els.pageCount.textContent=`/ ${state.pdf.numPages}`;els.prevPage.disabled=studentFollowActive()||n<=1;els.nextPage.disabled=studentFollowActive()||n>=state.pdf.numPages;
-    if(TEACHER){if(pageChanged){broadcastTeacherView();pushLiveState().catch(()=>{});}await loadTeacherPageData(forceData);if(pageChanged||!state.boards.length)await loadTeacherBoards();await pushLiveState();broadcastTeacherView();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
+    if(TEACHER){if(pageChanged){broadcastTeacherView();pushLiveState().catch(()=>{});}await loadTeacherPageData(forceData);if(pageChanged||!state.boards.length)await loadTeacherBoards();await pushLiveState();broadcastTeacherView();broadcastPageContent();broadcastBoardContent();window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));}
     else{await loadStudentPageData();if(pageChanged||!state.boards.length)await loadStudentBoards();persistStudentState();if(studentFollowActive())requestAnimationFrame(()=>applyTeacherCenter());}
   }finally{state.rendering=false;if(state.pendingPage!==null){const p=state.pendingPage;state.pendingPage=null;renderPage(p);}}
 }
@@ -567,23 +755,59 @@ function bindLayout(){
 }
 function bindStudentPinch(){
   if(TEACHER||!els.pdfScroller)return;
-  let touches=new Map();
+  const touches=new Map();
   const distance=()=>{const a=[...touches.values()];if(a.length<2)return 0;return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);};
-  els.pdfScroller.addEventListener('pointerdown',e=>{
-    if(!studentFollowActive()||e.pointerType!=='touch')return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});els.pdfScroller.setPointerCapture?.(e.pointerId);
-    if(touches.size===2){state.pinch={startDist:distance(),baseScale:state.scale,visual:1};}
-  });
-  els.pdfScroller.addEventListener('pointermove',e=>{
-    if(!studentFollowActive()||e.pointerType!=='touch'||!touches.has(e.pointerId))return;e.preventDefault();touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(touches.size===2&&state.pinch){const d=distance(),factor=Math.max(.6,Math.min(1.8,d/Math.max(1,state.pinch.startDist)));state.pinch.visual=factor;els.canvasWrap.style.transform=`scale(${factor})`;els.canvasWrap.style.transformOrigin=`${state.liveCenterX*100}% ${state.liveCenterY*100}%`;}
-  },{passive:false});
-  const finish=async e=>{
-    if(e.pointerType!=='touch')return;touches.delete(e.pointerId);
-    if(state.pinch&&touches.size<2){const factor=state.pinch.visual||1;state.scale=Math.max(.4,Math.min(3.5,state.pinch.baseScale*factor));state.fit=false;state.pinch=null;els.canvasWrap.style.transform='';await renderPage(state.pageNo);requestAnimationFrame(()=>applyTeacherCenter());}
-  };
-  els.pdfScroller.addEventListener('pointerup',finish);els.pdfScroller.addEventListener('pointercancel',finish);
-}
 
+  els.pdfScroller.addEventListener('pointerdown',e=>{
+    if(e.pointerType!=='touch')return;
+    touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    els.pdfScroller.setPointerCapture?.(e.pointerId);
+    if(touches.size===1)state.touchPan={id:e.pointerId,x:e.clientX,y:e.clientY};
+    else if(touches.size===2){
+      state.touchPan=null;
+      state.pinch={startDist:Math.max(1,distance()),baseScale:state.scale,visual:1};
+    }
+  });
+
+  els.pdfScroller.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='touch'||!touches.has(e.pointerId))return;
+    e.preventDefault();
+    const previous=touches.get(e.pointerId);
+    touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
+    if(touches.size>=2){
+      if(!state.pinch)state.pinch={startDist:Math.max(1,distance()),baseScale:state.scale,visual:1};
+      const factor=Math.max(.6,Math.min(1.8,distance()/Math.max(1,state.pinch.startDist)));
+      state.pinch.visual=factor;
+      els.canvasWrap.style.transform=`scale(${factor})`;
+      els.canvasWrap.style.transformOrigin='center center';
+      return;
+    }
+
+    if(touches.size===1&&!state.pinch){
+      const dx=e.clientX-previous.x,dy=e.clientY-previous.y;
+      els.pdfScroller.scrollLeft-=dx;
+      els.pdfScroller.scrollTop-=dy;
+      state.touchPan={id:e.pointerId,x:e.clientX,y:e.clientY};
+    }
+  },{passive:false});
+
+  const finish=async e=>{
+    if(e.pointerType!=='touch')return;
+    touches.delete(e.pointerId);
+    if(state.pinch&&touches.size<2){
+      const factor=state.pinch.visual||1;
+      state.scale=Math.max(.4,Math.min(3.5,state.pinch.baseScale*factor));
+      state.fit=false;state.pinch=null;els.canvasWrap.style.transform='';
+      await renderPage(state.pageNo);
+    }
+    if(touches.size===1){
+      const [id,p]=[...touches.entries()][0];state.touchPan={id,x:p.x,y:p.y};
+    }else if(!touches.size)state.touchPan=null;
+  };
+  els.pdfScroller.addEventListener('pointerup',finish);
+  els.pdfScroller.addEventListener('pointercancel',finish);
+}
 function bindCommon(){
   els.prevPage?.addEventListener('click',()=>{if(studentFollowActive())return;renderPage(state.pageNo-1);});
   els.nextPage?.addEventListener('click',()=>{if(studentFollowActive())return;renderPage(state.pageNo+1);});
@@ -603,7 +827,26 @@ function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.overlayCanvas.addEventListener('pointerdown',pointerDown);els.overlayCanvas.addEventListener('pointermove',pointerMove);els.overlayCanvas.addEventListener('pointerup',pointerUp);els.overlayCanvas.addEventListener('pointercancel',pointerUp);
   els.undoBtn?.addEventListener('click',()=>applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);
-  els.boardText?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('change',()=>{const b=boardByNo();if(b)b.title=els.boardTitleInput.value.trim()||`Board ${state.boardNo}`;pushLiveState();});
+  els.boardText?.addEventListener('input',()=>{rememberBoardSelection();saveBoardSoon();});
+  els.boardText?.addEventListener('keyup',rememberBoardSelection);
+  els.boardText?.addEventListener('mouseup',rememberBoardSelection);
+  els.boardText?.addEventListener('touchend',rememberBoardSelection);
+  els.boardText?.addEventListener('paste',e=>{
+    const hasImage=[...(e.clipboardData?.items||[])].some(i=>i.type.startsWith('image/'));
+    if(hasImage)return;
+    e.preventDefault();
+    const text=e.clipboardData?.getData('text/plain')||'';
+    document.execCommand('insertText',false,text);
+  });
+  document.addEventListener('selectionchange',rememberBoardSelection);
+  els.boardUnderline?.addEventListener('mousedown',e=>e.preventDefault());
+  els.boardUnderline?.addEventListener('click',()=>applyBoardFormat('underline'));
+  els.boardFontSize?.addEventListener('change',()=>applyBoardFormat('fontSize',els.boardFontSize.value));
+  els.boardTextColor?.addEventListener('input',()=>applyBoardFormat('foreColor',els.boardTextColor.value));
+  els.boardHighlightColor?.addEventListener('input',()=>applyBoardFormat('hiliteColor',els.boardHighlightColor.value));
+  els.boardClearFormat?.addEventListener('mousedown',e=>e.preventDefault());
+  els.boardClearFormat?.addEventListener('click',()=>applyBoardFormat('removeFormat'));
+  els.boardTitleInput?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('change',()=>{const b=boardByNo();if(b)b.title=els.boardTitleInput.value.trim()||`Board ${state.boardNo}`;broadcastBoardContent();pushLiveState();});
   els.boardAdd?.addEventListener('click',addBoard);els.boardDelete?.addEventListener('click',deleteBoard);
   els.imageZoomOut?.addEventListener('click',()=>changeImageZoom(-.25));els.imageZoomReset?.addEventListener('click',resetImageZoom);els.imageZoomIn?.addEventListener('click',()=>changeImageZoom(.25));
   els.pasteImageBtn?.addEventListener('click',()=>els.imageFileInput?.click());els.imageFileInput?.addEventListener('change',()=>{const f=els.imageFileInput.files?.[0];if(f)uploadImage(f);els.imageFileInput.value='';});els.deleteImageBtn?.addEventListener('click',deleteCurrentImage);
