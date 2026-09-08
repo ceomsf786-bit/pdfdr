@@ -29,7 +29,7 @@
     <section id="error" class="error hidden"></section>
 
     <section id="workspace" class="workspace student-workspace hidden">
-      <section class="pdf-area"><div id="followHint" class="follow-hint">Teacher controls the page and position • pinch with 2 fingers to zoom</div>
+      <section class="pdf-area"><div id="followHint" class="follow-hint">Hooked to teacher: page and position follow teacher • you control zoom and notes • pinch with 2 fingers to zoom</div>
         <div id="pdfScroller" class="pdf-scroller">
           <div id="canvasWrap" class="canvas-wrap">
             <canvas id="pdfCanvas"></canvas>
@@ -41,22 +41,39 @@
       <div id="studentSplit" class="splitter horizontal-splitter student-resize-bar" title="Drag to resize PDF and notepad"><span>⇅ DRAG TO RESIZE PDF / NOTEPAD ⇅</span></div>
 
       <aside id="boardPanel" class="board-panel student-board open">
-        <div class="board-head">
-          <div><strong id="boardTitleDisplay">Teacher Notepad</strong><div class="board-meta"><small id="boardLabel">Board 1</small><small id="boardScopeLabel" class="scope-pill">Permanent</small></div></div>
-          <div class="board-nav">
-            <button id="boardPrev" class="btn compact">←</button>
-            <button id="boardNext" class="btn compact">→</button>
+        <div class="board-head student-notes-head">
+          <div>
+            <strong>Teacher Notes</strong>
+            <small>Permanent notes + notes for the page you are seeing</small>
           </div>
         </div>
-        <textarea id="boardText" class="board-text" readonly placeholder="Teacher notes will appear here."></textarea>
-        <section class="image-section">
+
+        <div class="student-note-stack">
+          <section id="permanentNotesSection" class="student-note-card permanent-note-card">
+            <div class="student-note-card-head">
+              <strong id="permanentTitle">Permanent board</strong>
+              <span class="scope-pill">All pages</span>
+            </div>
+            <div id="permanentText" class="student-note-text">No permanent notes yet.</div>
+          </section>
+
+          <section id="pageNotesSection" class="student-note-card page-notes-card">
+            <div class="student-note-card-head">
+              <strong>Page notes</strong>
+              <span id="pageNotesBadge" class="scope-pill page-scope">Page 1</span>
+            </div>
+            <div id="pageNotesList" class="page-notes-list">No page notes yet.</div>
+          </section>
+        </div>
+
+        <section class="image-section student-image-section">
           <div class="image-toolbar">
-            <strong>Images</strong>
+            <strong id="studentImageTitle">Teacher images</strong>
             <span id="imageCounter">0 / 0</span>
             <button id="imagePrev" class="btn compact">←</button>
             <button id="imageNext" class="btn compact">→</button>
           </div>
-          <div id="imageStage" class="image-stage"><span>No pasted image on this board.</span><img id="boardImage" class="hidden" alt="Teacher pasted note"></div>
+          <div id="imageStage" class="image-stage"><span>No pasted image on the teacher's active board.</span><img id="boardImage" class="hidden" alt="Teacher pasted note"></div>
         </section>
       </aside>
     </section>

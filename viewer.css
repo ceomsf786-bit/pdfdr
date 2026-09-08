@@ -80,3 +80,31 @@ body[data-mode=student] .student-workspace.notes-hidden .student-board{display:n
   .student-resize-bar span{font-size:.61rem;padding:2px 7px}
   .follow-hint{font-size:.67rem;padding:3px 5px}
 }
+
+/* v3.3: explicit teacher hook + composite student notes */
+.hook-btn{font-weight:800}
+.hook-btn.hooked{background:var(--accent);border-color:var(--accent);color:#fff}
+.hook-btn.unhooked{background:#fff7ed;border-color:#f1c48b;color:#8a4b08}
+.student-notes-head{background:#fbfcfd}
+.student-note-stack{flex:0 1 auto;max-height:48%;min-height:150px;overflow:auto;overscroll-behavior:contain;padding:8px;display:flex;flex-direction:column;gap:8px;background:#f5f7f9;border-bottom:1px solid var(--line)}
+.student-note-card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(22,34,51,.05)}
+.student-note-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-bottom:1px solid var(--line);background:#fbfcfd}
+.student-note-text{padding:9px 10px;white-space:pre-wrap;line-height:1.45;min-height:38px;overflow-wrap:anywhere}
+.page-notes-list{display:flex;flex-direction:column;gap:0;color:var(--muted)}
+.page-note-entry{padding:9px 10px;border-top:1px solid var(--line);background:#fff;color:var(--text)}
+.page-note-entry:first-child{border-top:0}
+.page-note-entry strong{display:block;margin-bottom:4px;font-size:.84rem}
+.page-note-entry .page-note-body{white-space:pre-wrap;line-height:1.42;overflow-wrap:anywhere}
+.page-note-empty{padding:9px 10px;color:var(--muted);font-size:.82rem}
+.student-image-section{flex:1 1 180px;min-height:150px}
+body[data-mode=student] .student-board{overflow:hidden}
+body[data-mode=student] .student-board.closed{display:none!important}
+body.student-following #liveText{color:var(--accent);font-weight:800}
+body.student-following .follow-hint{display:block}
+
+@media(max-width:650px){
+  .student-note-stack{max-height:52%;min-height:130px;padding:6px;gap:6px}
+  .student-note-card-head{padding:6px 7px}
+  .student-note-text,.page-note-entry{padding:7px 8px}
+  .student-image-section{min-height:120px}
+}
