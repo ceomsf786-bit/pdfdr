@@ -310,3 +310,19 @@ body[data-mode=student] .gallery-overlay{pointer-events:none}
   .gallery-toolbar{padding:4px;gap:3px}
   .gallery-toolbar .btn{min-height:30px;padding:3px 6px}
 }
+
+
+/* v3.9 — reliable move/resize + whole-board drawing/panning */
+.gallery-stage{scrollbar-gutter:stable both-edges;touch-action:none;cursor:default}
+.gallery-grid{z-index:0}
+.gallery-images-layer{z-index:2}
+.gallery-overlay{z-index:5}
+.gallery-board.arrange-mode .gallery-overlay{pointer-events:none}
+.gallery-board.arrange-mode .gallery-images-layer{z-index:6}
+.gallery-board.draw-mode .gallery-overlay{pointer-events:auto}
+.gallery-board.hand-mode .gallery-overlay{cursor:grab}
+.gallery-board.hand-mode .gallery-overlay:active{cursor:grabbing}
+.gallery-board.arrange-mode{cursor:grab}
+.gallery-board.arrange-mode:active{cursor:grabbing}
+.gallery-tile{will-change:left,top,width,height}
+.gallery-tile img{object-fit:contain}

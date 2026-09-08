@@ -345,18 +345,19 @@ function normaliseGalleryState(raw){
   g.legacy_migrated=!!g.legacy_migrated;
   for(const [id,p] of Object.entries(g.placements)){
     if(!p||typeof p!=='object'){delete g.placements[id];continue;}
-    p.x=Math.max(0,Math.min(GALLERY_WIDTH-80,Number(p.x||0)));
-    p.y=Math.max(0,Math.min(GALLERY_HEIGHT-60,Number(p.y||0)));
-    p.w=Math.max(90,Math.min(GALLERY_WIDTH-p.x,Number(p.w||420)));
-    p.h=Math.max(70,Math.min(GALLERY_HEIGHT-p.y,Number(p.h||280)));
+    p.x=Math.max(0,Math.min(GALLERY_WIDTH-80,Number.isFinite(Number(p.x))?Number(p.x):0));
+    p.y=Math.max(0,Math.min(GALLERY_HEIGHT-60,Number.isFinite(Number(p.y))?Number(p.y):0));
+    p.w=Math.max(90,Math.min(GALLERY_WIDTH-p.x,Number.isFinite(Number(p.w))?Number(p.w):420));
+    p.h=Math.max(70,Math.min(GALLERY_HEIGHT-p.y,Number.isFinite(Number(p.h))?Number(p.h):280));
     p.z=Math.max(1,Number(p.z||1));
+    if(Number.isFinite(Number(p.aspect_ratio))&&Number(p.aspect_ratio)>.05)p.aspect_ratio=Number(p.aspect_ratio);
   }
   return g;
 }
 function currentGalleryPlacement(id){return state.galleryState?.placements?.[id]||null;}
 function defaultPlacementForIndex(i){
   const col=i%GALLERY_COLS,row=Math.floor(i/GALLERY_COLS);
-  return {x:40+col*GALLERY_CELL_W,y:45+row*GALLERY_CELL_H,w:500,h:280,z:i+1};
+  return {x:40+col*GALLERY_CELL_W,y:45+row*GALLERY_CELL_H,w:500,h:280,z:i+1,aspect_ratio:null};
 }
 function ensureGalleryPlacements(){
   if(!state.galleryState)state.galleryState=defaultGalleryState();
@@ -443,8 +444,35 @@ function updateGalleryToolbar(){
   if(els.imagePrev)els.imagePrev.disabled=!n||idx<=0;
   if(els.imageNext)els.imageNext.disabled=!n||idx<0||idx>=n-1;
   if(els.deleteImageBtn)els.deleteImageBtn.disabled=!TEACHER||idx<0;
-  if(els.galleryArrangeBtn){els.galleryArrangeBtn.textContent=state.galleryArrange?'Done arranging':'Arrange images';els.galleryArrangeBtn.classList.toggle('active',state.galleryArrange);}
+  if(els.galleryArrangeBtn){els.galleryArrangeBtn.textContent=state.galleryArrange?'Done arranging':'Move / resize images';els.galleryArrangeBtn.classList.toggle('active',state.galleryArrange);}
   if(els.imageZoomReset)els.imageZoomReset.textContent=`${Math.round(state.imageZoom*100)}%`;
+}
+function setGallerySelectionVisual(id){
+  state.selectedGalleryImageId=id;state.liveImageId=id;
+  const idx=galleryImageIndex(id);if(idx>=0)state.imageIndex=idx;
+  els.galleryImagesLayer?.querySelectorAll('.gallery-tile').forEach(t=>t.classList.toggle('selected',t.dataset.imageId===id));
+  updateGalleryToolbar();
+}
+function fitPlacementToNaturalAspect(p,img){
+  if(!p||!img?.naturalWidth||!img?.naturalHeight)return false;
+  const ratio=img.naturalWidth/img.naturalHeight;if(!Number.isFinite(ratio)||ratio<=.05)return false;
+  if(Number.isFinite(Number(p.aspect_ratio))&&Number(p.aspect_ratio)>.05)return false;
+  p.aspect_ratio=ratio;
+  let w=Math.max(90,Math.min(GALLERY_WIDTH-p.x,Number(p.w||500)));
+  let h=w/ratio;
+  if(h<70){h=70;w=h*ratio;}
+  if(h>GALLERY_HEIGHT-p.y){h=Math.max(70,GALLERY_HEIGHT-p.y);w=h*ratio;}
+  if(w>GALLERY_WIDTH-p.x){w=Math.max(90,GALLERY_WIDTH-p.x);h=w/ratio;}
+  p.w=w;p.h=Math.max(70,h);
+  return true;
+}
+function autoScrollGalleryForPointer(clientX,clientY){
+  const stage=els.imageStage;if(!stage)return;
+  const r=stage.getBoundingClientRect(),edge=58,step=28;
+  if(clientX<r.left+edge)stage.scrollLeft=Math.max(0,stage.scrollLeft-step);
+  else if(clientX>r.right-edge)stage.scrollLeft=Math.min(stage.scrollWidth-stage.clientWidth,stage.scrollLeft+step);
+  if(clientY<r.top+edge)stage.scrollTop=Math.max(0,stage.scrollTop-step);
+  else if(clientY>r.bottom-edge)stage.scrollTop=Math.min(stage.scrollHeight-stage.clientHeight,stage.scrollTop+step);
 }
 async function buildGalleryTile(image){
   const p=currentGalleryPlacement(image.id);if(!p||!els.galleryImagesLayer)return;
@@ -455,10 +483,18 @@ async function buildGalleryTile(image){
   const img=document.createElement('img');img.alt=image.image_name||'Gallery image';img.draggable=false;
   const handle=document.createElement('div');handle.className='gallery-resize-handle';handle.title='Drag to resize';
   tile.append(label,img,handle);els.galleryImagesLayer.appendChild(tile);
-  fetchImageBlobUrl(image).then(url=>{img.src=url;}).catch(()=>{label.textContent='Could not load image';});
-  if(TEACHER){
-    tile.addEventListener('pointerdown',e=>galleryTilePointerDown(e,image.id));
-  }
+  fetchImageBlobUrl(image).then(url=>{
+    img.onload=()=>{
+      if(fitPlacementToNaturalAspect(p,img)){
+        tile.style.width=p.w+'px';tile.style.height=p.h+'px';saveGalleryStateSoon(120);
+      }
+    };
+    img.src=url;
+    if(img.complete&&img.naturalWidth&&fitPlacementToNaturalAspect(p,img)){
+      tile.style.width=p.w+'px';tile.style.height=p.h+'px';saveGalleryStateSoon(120);
+    }
+  }).catch(()=>{label.textContent='Could not load image';});
+  if(TEACHER)tile.addEventListener('pointerdown',e=>galleryTilePointerDown(e,image.id));
 }
 async function renderGallery(){
   if(!els.galleryBoard||!els.galleryImagesLayer)return;
@@ -468,13 +504,17 @@ async function renderGallery(){
   els.galleryZoomWrap.style.width=(w*z)+'px';els.galleryZoomWrap.style.height=(h*z)+'px';
   els.galleryBoard.style.width=w+'px';els.galleryBoard.style.height=h+'px';els.galleryBoard.style.transform=`scale(${z})`;
   els.galleryBoard.classList.toggle('arrange-mode',TEACHER&&state.galleryArrange);
+  els.galleryBoard.classList.toggle('hand-mode',TEACHER&&!state.galleryArrange&&state.tool==='hand');
+  els.galleryBoard.classList.toggle('draw-mode',TEACHER&&!state.galleryArrange&&state.tool!=='hand');
   els.galleryImagesLayer.replaceChildren();
   const ordered=[...state.images].sort((a,b)=>(currentGalleryPlacement(a.id)?.z||0)-(currentGalleryPlacement(b.id)?.z||0));
   for(const image of ordered)await buildGalleryTile(image);
   drawGalleryOverlay();updateGalleryToolbar();persistStudentState();
 }
 function setGalleryArrange(next){
-  if(!TEACHER)return;state.galleryArrange=!!next;state.selectedId=null;state.activeSurface=state.galleryArrange?'gallery-arrange':'gallery';renderGallery();
+  if(!TEACHER)return;state.galleryArrange=!!next;state.selectedId=null;state.activeSurface=state.galleryArrange?'gallery-arrange':'gallery';
+  renderGallery();
+  setStatus(state.galleryArrange?'Move/resize mode: drag images anywhere. Drag blank board to pan.':'Draw mode: pen/highlighter/shapes work over the whole board and over images. Hand tool pans.');
 }
 function selectGalleryImage(id,scroll=true){
   if(!id||!state.images.some(x=>x.id===id))return;
@@ -489,26 +529,65 @@ function focusGalleryImage(delta){
 }
 function galleryTilePointerDown(e,id){
   if(!TEACHER||!state.galleryArrange||!state.galleryState)return;e.preventDefault();e.stopPropagation();
-  selectGalleryImage(id,false);const p=currentGalleryPlacement(id);if(!p)return;
+  const p=currentGalleryPlacement(id);if(!p)return;
+  setGallerySelectionVisual(id);
   const tile=e.currentTarget,isResize=e.target?.classList?.contains('gallery-resize-handle');
-  const maxZ=Math.max(1,...Object.values(state.galleryState.placements).map(x=>Number(x.z||1)));p.z=maxZ+1;
-  const start={x:e.clientX,y:e.clientY,p:clone(p),mode:isResize?'resize':'move'};state.galleryPointer=start;tile.setPointerCapture?.(e.pointerId);
+  const maxZ=Math.max(1,...Object.values(state.galleryState.placements).map(x=>Number(x.z||1)));p.z=maxZ+1;tile.style.zIndex=String(p.z);
+  const stage=els.imageStage;
+  const start={x:e.clientX,y:e.clientY,p:clone(p),mode:isResize?'resize':'move',scrollLeft:stage?.scrollLeft||0,scrollTop:stage?.scrollTop||0};
+  state.galleryPointer=start;
   const move=ev=>{
-    if(!state.galleryPointer)return;const dz=Math.max(.2,state.imageZoom),dx=(ev.clientX-start.x)/dz,dy=(ev.clientY-start.y)/dz;
-    if(start.mode==='move'){p.x=Math.max(0,Math.min(GALLERY_WIDTH-p.w,start.p.x+dx));p.y=Math.max(0,Math.min(GALLERY_HEIGHT-p.h,start.p.y+dy));}
-    else{p.w=Math.max(90,Math.min(GALLERY_WIDTH-p.x,start.p.w+dx));p.h=Math.max(70,Math.min(GALLERY_HEIGHT-p.y,start.p.h+dy));}
-    tile.style.left=p.x+'px';tile.style.top=p.y+'px';tile.style.width=p.w+'px';tile.style.height=p.h+'px';tile.style.zIndex=String(p.z);
+    if(!state.galleryPointer)return;ev.preventDefault();
+    autoScrollGalleryForPointer(ev.clientX,ev.clientY);
+    const dz=Math.max(.2,state.imageZoom),scrollDx=(stage?.scrollLeft||0)-start.scrollLeft,scrollDy=(stage?.scrollTop||0)-start.scrollTop;
+    const dx=(ev.clientX-start.x+scrollDx)/dz,dy=(ev.clientY-start.y+scrollDy)/dz;
+    if(start.mode==='move'){
+      p.x=Math.max(0,Math.min(GALLERY_WIDTH-p.w,start.p.x+dx));
+      p.y=Math.max(0,Math.min(GALLERY_HEIGHT-p.h,start.p.y+dy));
+    }else{
+      const ratio=Number(p.aspect_ratio||start.p.aspect_ratio||0);
+      if(ratio>.05){
+        const fromX=start.p.w+dx,fromY=(start.p.h+dy)*ratio;
+        let nw=Math.abs(dx)>=Math.abs(dy*ratio)?fromX:fromY;
+        nw=Math.max(90,Math.min(GALLERY_WIDTH-p.x,nw));
+        let nh=nw/ratio;
+        if(nh<70){nh=70;nw=nh*ratio;}
+        if(nh>GALLERY_HEIGHT-p.y){nh=Math.max(70,GALLERY_HEIGHT-p.y);nw=nh*ratio;}
+        p.w=Math.max(90,nw);p.h=Math.max(70,nh);
+      }else{
+        p.w=Math.max(90,Math.min(GALLERY_WIDTH-p.x,start.p.w+dx));
+        p.h=Math.max(70,Math.min(GALLERY_HEIGHT-p.y,start.p.h+dy));
+      }
+    }
+    tile.style.left=p.x+'px';tile.style.top=p.y+'px';tile.style.width=p.w+'px';tile.style.height=p.h+'px';
   };
-  const up=()=>{state.galleryPointer=null;tile.removeEventListener('pointermove',move);tile.removeEventListener('pointerup',up);tile.removeEventListener('pointercancel',up);saveGalleryStateSoon(60);renderGallery();};
-  tile.addEventListener('pointermove',move);tile.addEventListener('pointerup',up);tile.addEventListener('pointercancel',up);
+  const up=()=>{
+    state.galleryPointer=null;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);
+    saveGalleryStateSoon(40);broadcastGalleryContent();renderGallery();
+  };
+  window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up,{once:true});window.addEventListener('pointercancel',up,{once:true});
 }
 function autoTileGallery(){
-  if(!TEACHER||!state.galleryState)return;state.images.forEach((img,i)=>state.galleryState.placements[img.id]=defaultPlacementForIndex(i));saveGalleryStateSoon(40);renderGallery();setStatus('Gallery tiled');
+  if(!TEACHER||!state.galleryState)return;
+  state.images.forEach((img,i)=>{const old=currentGalleryPlacement(img.id),p=defaultPlacementForIndex(i);if(old?.aspect_ratio){p.aspect_ratio=old.aspect_ratio;p.h=Math.max(70,p.w/old.aspect_ratio);}state.galleryState.placements[img.id]=p;});
+  saveGalleryStateSoon(40);renderGallery();setStatus('Gallery tiled');
 }
-function rememberGallery(){if(!TEACHER||!state.galleryState)return;state.galleryUndo.push(clone(state.galleryState.objects));if(state.galleryUndo.length>70)state.galleryUndo.shift();state.galleryRedo=[];}
+function galleryStagePointerDown(e){
+  if(!TEACHER||!state.galleryState||!els.imageStage)return;
+  if(e.target?.closest?.('.gallery-tile'))return;
+  const shouldPan=state.galleryArrange || (!state.galleryArrange&&state.tool==='hand');
+  if(!shouldPan)return;
+  e.preventDefault();
+  const stage=els.imageStage,startX=e.clientX,startY=e.clientY,startLeft=stage.scrollLeft,startTop=stage.scrollTop;
+  const move=ev=>{ev.preventDefault();stage.scrollLeft=startLeft-(ev.clientX-startX);stage.scrollTop=startTop-(ev.clientY-startY);};
+  const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
+  window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up,{once:true});window.addEventListener('pointercancel',up,{once:true});
+}function rememberGallery(){if(!TEACHER||!state.galleryState)return;state.galleryUndo.push(clone(state.galleryState.objects));if(state.galleryUndo.length>70)state.galleryUndo.shift();state.galleryRedo=[];}
 function applyGalleryHistory(from,to){const item=from.pop();if(!item||!state.galleryState)return;to.push(clone(state.galleryState.objects));state.galleryState.objects=clone(item);state.selectedId=null;drawGalleryOverlay();saveGalleryStateSoon(20);}
 function galleryPointerDown(e){
-  if(!TEACHER||state.galleryArrange||!state.galleryState)return;state.activeSurface='gallery';const p=norm(e,els.galleryOverlayCanvas);if(state.tool==='hand')return;
+  if(!TEACHER||state.galleryArrange||!state.galleryState)return;state.activeSurface='gallery';
+  if(state.tool==='hand'){e.stopPropagation();galleryStagePointerDown(e);return;}
+  const p=norm(e,els.galleryOverlayCanvas);
   if(state.tool==='select'){const hit=hitTest(state.galleryState.objects,p);state.selectedId=hit?.id||null;drawGalleryOverlay();if(hit){rememberGallery();state.galleryPointer={id:hit.id,last:p,kind:'move'};els.galleryOverlayCanvas.setPointerCapture?.(e.pointerId);}return;}
   if(state.tool==='eraser'){const hit=hitTest(state.galleryState.objects,p);if(hit){rememberGallery();state.galleryState.objects=state.galleryState.objects.filter(x=>x.id!==hit.id);state.selectedId=null;drawGalleryOverlay();saveGalleryStateSoon(20);}return;}
   if(state.tool==='text'){const text=prompt('Text to add:');if(!text)return;rememberGallery();state.galleryState.objects.push({id:uuid(),type:'text',x:p.x,y:p.y,text:text.slice(0,600),color:curColor(),fontSize:Math.max(14,curWidth()*5)});drawGalleryOverlay();saveGalleryStateSoon(20);return;}
@@ -626,7 +705,11 @@ function drawLiveSegment(o,a,b){ const c=els.overlayCanvas,ctx=c.getContext('2d'
 function scheduleOverlayRedraw(){ if(state.rafPending)return;state.rafPending=true;requestAnimationFrame(()=>{state.rafPending=false;drawOverlay();}); }
 function remember(){ if(!TEACHER)return;state.undo.push(clone(state.pageObjects));if(state.undo.length>70)state.undo.shift();state.redo=[]; }
 function applyHistory(from,to){ const item=from.pop();if(!item)return;to.push(clone(state.pageObjects));state.pageObjects=clone(item);state.pageCache.set(state.pageNo,clone(state.pageObjects));state.selectedId=null;drawOverlay();savePageSoon(20); }
-function setTool(tool){state.tool=tool;state.selectedId=null;els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand');drawOverlay();drawGalleryOverlay();}
+function setTool(tool){
+  state.tool=tool;state.selectedId=null;
+  if(TEACHER&&state.galleryArrange){state.galleryArrange=false;state.activeSurface='gallery';setStatus(tool==='hand'?'Hand tool: drag gallery to pan left/right/up/down.':'Draw mode: draw anywhere on the gallery, including directly over images.');}
+  els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand');drawOverlay();drawGalleryOverlay();renderGallery();
+}
 function pointerDown(evt){
   if(!TEACHER)return;
   state.activeSurface='pdf';
@@ -1015,7 +1098,7 @@ function bindCommon(){
 function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.overlayCanvas.addEventListener('pointerdown',pointerDown);els.overlayCanvas.addEventListener('pointermove',pointerMove);els.overlayCanvas.addEventListener('pointerup',pointerUp);els.overlayCanvas.addEventListener('pointercancel',pointerUp);
-  els.galleryOverlayCanvas?.addEventListener('pointerdown',galleryPointerDown);els.galleryOverlayCanvas?.addEventListener('pointermove',galleryPointerMove);els.galleryOverlayCanvas?.addEventListener('pointerup',galleryPointerUp);els.galleryOverlayCanvas?.addEventListener('pointercancel',galleryPointerUp);
+  els.galleryOverlayCanvas?.addEventListener('pointerdown',galleryPointerDown);els.galleryOverlayCanvas?.addEventListener('pointermove',galleryPointerMove);els.galleryOverlayCanvas?.addEventListener('pointerup',galleryPointerUp);els.galleryOverlayCanvas?.addEventListener('pointercancel',galleryPointerUp);els.imageStage?.addEventListener('pointerdown',galleryStagePointerDown);
   els.undoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryUndo,state.galleryRedo):applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryRedo,state.galleryUndo):applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);
   els.boardText?.addEventListener('input',()=>{rememberBoardSelection();saveBoardSoon();});
   els.boardText?.addEventListener('keyup',rememberBoardSelection);

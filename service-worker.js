@@ -1,8 +1,9 @@
+// v3.9 gallery drag/pan/draw fix
 // v3.8 freeform gallery board
 // v3.7 global gallery + image annotations
 // v3.6 realtime annotations + rich notes + student pan
 // v3.5 student-control cache refresh
-const CACHE = 'snt-pdf-static-v3-8';
+const CACHE = 'snt-pdf-static-v3-9';
 const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./config.js'];
 
 self.addEventListener('install', event => {
