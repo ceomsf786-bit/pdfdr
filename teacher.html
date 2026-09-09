@@ -16,6 +16,9 @@
         <button id="copyStudentLink" class="btn compact">Copy student link</button>
         <button id="hookStudentsBtn" class="btn compact hook-btn" type="button" aria-pressed="true">🔗 Students hooked</button>
         <button id="exportPdf" class="btn compact">Export PDF</button>
+        <button id="backupPdfBtn" class="btn compact" type="button" title="Export every SNT annotation, note and gallery item for this PDF into one backup file">Backup all</button>
+        <button id="importBackupBtn" class="btn compact" type="button" title="Restore an SNT backup into this PDF">Import backup</button>
+        <input id="backupFileInput" type="file" accept=".sntbackup,.zip,application/zip" hidden>
         <button id="fullscreenBtn" class="btn compact">Full screen</button>
         <button id="focusPdfBtn" class="btn compact">PDF focus</button>
         <button id="resetLayoutBtn" class="btn compact">Reset layout</button>
@@ -145,7 +148,11 @@
       </aside>
     </section>
 
-    <footer class="statusbar"><span id="statusText">Ready</span><span id="liveText">Teacher live</span></footer>
+    <footer class="statusbar teacher-statusbar">
+      <span id="statusText">Ready</span>
+      <span class="teaching-flow" title="Suggested lesson rhythm">RECALL → TEACH → THINK → RETRIEVE → APPLY → DISCUSS → WRITE → RETRIEVE</span>
+      <span id="liveText">Teacher live</span>
+    </footer>
 
     <dialog id="libraryDialog" class="library-dialog">
       <form method="dialog" class="dialog-head"><strong>PDF Library</strong><button class="btn compact">Close</button></form>
@@ -161,6 +168,7 @@
   </main>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script type="module" src="viewer.js"></script>
 </body>
 </html>
