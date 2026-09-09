@@ -1,0 +1,23 @@
+/* v3.11 shared/categorised teacher library */
+.shared-library-tools{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0 12px;
+  border-bottom:1px solid var(--line,#d8e0e5);margin-bottom:10px;
+}
+.shared-library-tools input,.shared-library-tools select,.create-doc .library-category-input{
+  min-height:34px;border:1px solid var(--line,#cbd5dc);border-radius:7px;background:#fff;
+  padding:6px 9px;color:inherit;
+}
+.shared-library-tools .library-search{min-width:190px;flex:1 1 220px}
+.shared-library-note{font-size:.72rem;color:var(--muted,#687781);margin:2px 0 10px}
+.library-category-group{border:1px solid var(--line,#d7e0e6);border-radius:10px;overflow:hidden;margin:10px 0;background:#fff}
+.library-category-head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f4f7f8;border-bottom:1px solid var(--line,#d7e0e6);font-weight:800}
+.library-category-count{font-size:.7rem;color:var(--muted,#687781);font-weight:600}
+.library-category-group .lib-row{border:0;border-bottom:1px solid #edf1f3;border-radius:0}
+.library-category-group .lib-row:last-child{border-bottom:0}
+.lib-category-pill{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:999px;background:#edf6f2;color:#17684e;font-size:.67rem;font-weight:800}
+.lib-actions .category-btn{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.master-progress{font-size:.72rem;color:var(--muted,#687781);font-weight:700}
+@media(max-width:650px){
+  .shared-library-tools{align-items:stretch}.shared-library-tools>*{flex:1 1 100%}
+  .lib-actions{flex-wrap:wrap}.lib-actions .btn{flex:1 1 auto}
+}
