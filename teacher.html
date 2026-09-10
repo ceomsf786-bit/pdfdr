@@ -19,7 +19,9 @@
         <button id="copyStudentLink" class="btn compact">Copy student link</button>
         <button id="hookStudentsBtn" class="btn compact hook-btn" type="button" aria-pressed="true">🔗 Students hooked</button>
         <button id="exportPdf" class="btn compact">Export PDF</button>
-        <button id="backupPdfBtn" class="btn compact" type="button" title="Export every SNT annotation, note and gallery item for this PDF into one backup file">Backup all</button>
+        <button id="insertPdfBtn" class="btn compact" type="button" title="Insert all pages of another PDF anywhere in this document">+ Insert PDF</button>
+        <input id="insertPdfInput" type="file" accept="application/pdf,.pdf" hidden>
+        <button id="backupPdfBtn" class="btn compact" type="button" title="Export every SNT annotation, note and image item for this PDF into one backup file">Backup all</button>
         <button id="importBackupBtn" class="btn compact" type="button" title="Restore an SNT backup into this PDF">Import backup</button>
         <input id="backupFileInput" type="file" accept=".sntbackup,.zip,application/zip" hidden>
         <button id="fullscreenBtn" class="btn compact">Full screen</button>
@@ -58,6 +60,8 @@
         <div class="rail-divider"></div>
         <label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label>
         <label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label>
+        <label class="rail-label" title="Fill new boxes/circles and the selected shape"><span>Fill shape</span><input id="shapeFillToggle" type="checkbox"></label>
+        <label class="rail-label">Fill colour<input id="shapeFillColor" type="color" value="#fff59d"></label>
         <button id="undoBtn" class="tool">↶<span>Undo</span></button>
         <button id="redoBtn" class="tool">↷<span>Redo</span></button>
         <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
@@ -103,20 +107,11 @@
           <button id="boardUnderline" class="btn compact rich-format-btn" type="button" title="Underline selected text"><u>U</u></button>
           <label class="rich-format-label">Font
             <select id="boardFontSize" class="rich-format-select" title="Selected text size">
-              <option value="2">Small</option>
-              <option value="3" selected>Normal</option>
-              <option value="4">Large</option>
-              <option value="5">XL</option>
-              <option value="6">XXL</option>
-              <option value="7">Huge</option>
+              <option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">XL</option><option value="6">XXL</option><option value="7">Huge</option>
             </select>
           </label>
-          <label class="rich-format-label">Text
-            <input id="boardTextColor" type="color" value="#1f2937" title="Text colour">
-          </label>
-          <label class="rich-format-label">Highlight
-            <input id="boardHighlightColor" type="color" value="#fff59d" title="Highlight colour">
-          </label>
+          <label class="rich-format-label">Text<input id="boardTextColor" type="color" value="#1f2937" title="Text colour"></label>
+          <label class="rich-format-label">Highlight<input id="boardHighlightColor" type="color" value="#fff59d" title="Highlight colour"></label>
           <button id="boardClearFormat" class="btn compact" type="button" title="Remove formatting from selected text">Clear</button>
         </div>
 
@@ -124,29 +119,7 @@
 
         <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
         <section id="imageSection" class="image-section teacher-images" tabindex="0">
-          <div class="image-toolbar gallery-toolbar">
-            <strong>PDF gallery</strong>
-            <span id="imageCounter">0 images</span>
-            <button id="imagePrev" class="btn compact" title="Select previous image">←</button>
-            <button id="imageNext" class="btn compact" title="Select next image">→</button>
-            <button id="imageZoomOut" class="btn compact" title="Zoom gallery out">−</button>
-            <button id="imageZoomReset" class="btn compact">50%</button>
-            <button id="imageZoomIn" class="btn compact" title="Zoom gallery in">+</button>
-            <button id="galleryArrangeBtn" class="btn compact" type="button">Move / resize images</button>
-            <button id="galleryTileBtn" class="btn compact" type="button">Auto tile</button>
-            <button id="pasteImageBtn" class="btn compact">Choose image</button>
-            <button id="deleteImageBtn" class="btn compact danger-text">Delete selected</button>
-            <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
-          </div>
-          <div id="imageStage" class="image-stage gallery-stage">
-            <div id="galleryZoomWrap" class="gallery-zoom-wrap">
-              <div id="galleryBoard" class="gallery-board">
-                <div class="gallery-grid"></div>
-                <div id="galleryImagesLayer" class="gallery-images-layer"></div>
-                <canvas id="galleryOverlayCanvas" class="gallery-overlay"></canvas>
-              </div>
-            </div>
-          </div>
+          <div class="image-toolbar gallery-toolbar"><strong>Loading Image Boards…</strong></div>
         </section>
       </aside>
     </section>
@@ -172,9 +145,10 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script type="module" src="viewer.js"></script>
+  <script type="module" src="v313-viewer-loader.js"></script>
   <script type="module" src="v310-backup.js"></script>
   <script type="module" src="v311-library.js"></script>
   <script type="module" src="v312-imageboards.js"></script>
+  <script type="module" src="v313-pdf-insert.js"></script>
 </body>
 </html>
