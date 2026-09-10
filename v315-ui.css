@@ -1,0 +1,22 @@
+/* SNT PDF Annotator v3.15 */
+
+/* Keep annotation tools available while the PDF canvas scrolls. */
+.tool-rail{transform:none!important;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;align-self:stretch}
+.pdf-controls{position:sticky;top:0;z-index:30}
+
+/* Shape opacity control */
+.shape-opacity-row{display:flex;align-items:center;gap:5px;font-size:.64rem;color:var(--muted)}
+.shape-opacity-row input[type=range]{width:100%}
+#shapeFillOpacityValue{font-size:.62rem;font-weight:800;color:var(--text);text-align:center}
+
+/* Rich-note links stay clearly clickable for teacher and student. */
+.board-rich-editor a,.student-note-text a,.page-note-entry a,.page-note-text a{color:#0b61c9;text-decoration:underline;text-underline-offset:2px;cursor:pointer;overflow-wrap:anywhere}
+.board-rich-editor a:hover,.student-note-text a:hover,.page-note-entry a:hover,.page-note-text a:hover{text-decoration-thickness:2px}
+
+#exportBoardsPdf{font-weight:700}
+
+@media(max-height:720px){
+  .tool{min-height:38px}
+  .tool-rail{gap:2px;padding-top:4px;padding-bottom:4px}
+  .rail-label{gap:1px}
+}
