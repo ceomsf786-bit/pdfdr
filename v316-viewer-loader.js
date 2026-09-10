@@ -53,7 +53,7 @@ function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.shapeFillToggle?.addEventListener('change',applySelectedStyle);
   els.shapeFillColor?.addEventListener('input',applySelectedStyle);
-  els.shapeFillOpacity?.addEventListener('input',()=>{if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`${els.shapeFillOpacity.value}%\`;applySelectedStyle();});
+  els.shapeFillOpacity?.addEventListener('input',()=>{if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`\${els.shapeFillOpacity.value}%\`;applySelectedStyle();});
   els.colorInput?.addEventListener('input',applySelectedStyle);`
   );
 
