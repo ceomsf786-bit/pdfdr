@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#ffffff">
   <title>SNT PDF Viewer</title>
   <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="v312-imageboards.css">
 </head>
 <body data-mode="student">
   <main id="app">
@@ -71,12 +72,12 @@
         </section>
 
         <div id="studentPageSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize page notes and images">
-          <span>⇅ PAGE NOTES / IMAGES ⇅</span>
+          <span>⇅ PAGE NOTES / IMAGE BOARDS ⇅</span>
         </div>
 
-        <section class="image-section student-image-section student-resizable-block">
+        <section id="imageSection" class="image-section student-image-section student-resizable-block">
           <div class="image-toolbar gallery-toolbar">
-            <strong id="studentImageTitle">Teacher gallery</strong>
+            <strong id="studentImageTitle">Teacher image boards</strong>
             <span id="imageCounter">0 images</span>
             <button id="imagePrev" class="btn compact" title="Previous image">←</button>
             <button id="imageNext" class="btn compact" title="Next image">→</button>
@@ -101,5 +102,6 @@
   </main>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script type="module" src="viewer.js"></script>
+  <script type="module" src="v312-imageboards.js"></script>
 </body>
 </html>
