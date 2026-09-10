@@ -29,6 +29,12 @@ if (!response.ok) {
 
   loader = loader.replaceAll('fillOpacity:.22', 'fillOpacity:curFillOpacity()');
   loader = loader.replaceAll('o.fillOpacity??.22', 'o.fillOpacity??1');
+  loader = loader.replaceAll('Number(o.fillOpacity??1)', 'Number(o.fillOpacity===.22?1:(o.fillOpacity??1))');
+
+  patch(
+    "const hit=hitTest(state.pageObjects,p);state.selectedId=hit?.id||null;drawOverlay();",
+    "const hit=hitTest(state.pageObjects,p);state.selectedId=hit?.id||null;syncSelectedStyleControls(hit);drawOverlay();"
+  );
 
   patch(
 `function applyShapeFillToSelection(){
@@ -39,7 +45,18 @@ function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.shapeFillToggle?.addEventListener('change',applyShapeFillToSelection);
   els.shapeFillColor?.addEventListener('input',applyShapeFillToSelection);`,
-`function applySelectedStyle(){
+`function syncSelectedStyleControls(o){
+  if(!TEACHER||!o)return;
+  if(els.colorInput&&o.color)els.colorInput.value=o.color;
+  if(o.type==='rect'||o.type==='ellipse'){
+    if(els.shapeFillToggle)els.shapeFillToggle.checked=!!o.fill;
+    if(els.shapeFillColor&&(o.fillColor||o.color))els.shapeFillColor.value=o.fillColor||o.color;
+    const opacity=o.fillOpacity===.22?1:Number(o.fillOpacity??1);
+    if(els.shapeFillOpacity)els.shapeFillOpacity.value=String(Math.round(Math.max(0,Math.min(1,opacity))*100));
+    if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`\${els.shapeFillOpacity?.value||100}%\`;
+  }
+}
+function applySelectedStyle(){
   if(!TEACHER||!state.selectedId)return;
   const o=state.pageObjects.find(x=>x.id===state.selectedId);if(!o)return;
   remember();
