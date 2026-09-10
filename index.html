@@ -11,10 +11,7 @@
 <body data-mode="student">
   <main id="app">
     <header class="topbar student-topbar">
-      <div class="brand">
-        <span class="logo">SNT</span>
-        <div><strong id="docTitle">SNT PDF</strong><small id="contextText">Opening textbook…</small></div>
-      </div>
+      <div class="brand"><span class="logo">SNT</span><div><strong id="docTitle">SNT PDF</strong><small id="contextText">Opening textbook…</small></div></div>
       <div class="top-actions">
         <button id="prevPage" class="btn compact">←</button>
         <label class="page-box"><input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label>
@@ -31,69 +28,30 @@
 
     <section id="workspace" class="workspace student-workspace hidden">
       <section class="pdf-area"><div id="followHint" class="follow-hint">Hooked LIVE: teacher controls only PDF page + position • YOU control zoom, notes and every resize bar</div>
-        <div id="pdfScroller" class="pdf-scroller">
-          <div id="canvasWrap" class="canvas-wrap">
-            <canvas id="pdfCanvas"></canvas>
-            <canvas id="overlayCanvas"></canvas>
-          </div>
-        </div>
+        <div id="pdfScroller" class="pdf-scroller"><div id="canvasWrap" class="canvas-wrap"><canvas id="pdfCanvas"></canvas><canvas id="overlayCanvas"></canvas></div></div>
       </section>
 
       <div id="studentSplit" class="splitter horizontal-splitter student-resize-bar" title="Drag to resize PDF and notepad"><span>⇅ DRAG TO RESIZE PDF / NOTEPAD ⇅</span></div>
 
       <aside id="boardPanel" class="board-panel student-board open">
-        <div class="board-head student-notes-head">
-          <div>
-            <strong>Teacher Notes</strong>
-            <small>Permanent notes + notes for the page you are seeing</small>
-          </div>
-        </div>
+        <div class="board-head student-notes-head"><div><strong>Teacher Notes</strong><small>Permanent notes + notes for the page you are seeing</small></div></div>
 
         <section id="permanentNotesSection" class="student-note-card permanent-note-card student-resizable-block">
-          <div class="student-note-card-head">
-            <strong id="permanentTitle">Permanent board</strong>
-            <span class="scope-pill">All pages</span>
-          </div>
-          <div class="student-block-scroll">
-            <div id="permanentText" class="student-note-text">No permanent notes yet.</div>
-          </div>
+          <div class="student-note-card-head"><strong id="permanentTitle">Permanent board</strong><span class="scope-pill">All pages</span></div>
+          <div class="student-block-scroll"><div id="permanentText" class="student-note-text">No permanent notes yet.</div></div>
         </section>
 
-        <div id="studentPermanentSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize permanent notes and page notes">
-          <span>⇅ PERMANENT / PAGE NOTES ⇅</span>
-        </div>
+        <div id="studentPermanentSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize permanent notes and page notes"><span>⇅ PERMANENT / PAGE NOTES ⇅</span></div>
 
         <section id="pageNotesSection" class="student-note-card page-notes-card student-resizable-block">
-          <div class="student-note-card-head">
-            <strong>Page notes</strong>
-            <span id="pageNotesBadge" class="scope-pill page-scope">Page 1</span>
-          </div>
+          <div class="student-note-card-head"><strong>Page notes</strong><span id="pageNotesBadge" class="scope-pill page-scope">Page 1</span></div>
           <div id="pageNotesList" class="page-notes-list student-block-scroll">No page notes yet.</div>
         </section>
 
-        <div id="studentPageSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize page notes and images">
-          <span>⇅ PAGE NOTES / IMAGE BOARDS ⇅</span>
-        </div>
+        <div id="studentPageSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize page notes and images"><span>⇅ PAGE NOTES / IMAGE BOARDS ⇅</span></div>
 
         <section id="imageSection" class="image-section student-image-section student-resizable-block">
-          <div class="image-toolbar gallery-toolbar">
-            <strong id="studentImageTitle">Teacher image boards</strong>
-            <span id="imageCounter">0 images</span>
-            <button id="imagePrev" class="btn compact" title="Previous image">←</button>
-            <button id="imageNext" class="btn compact" title="Next image">→</button>
-            <button id="imageZoomOut" class="btn compact" title="Zoom gallery out">−</button>
-            <button id="imageZoomReset" class="btn compact">50%</button>
-            <button id="imageZoomIn" class="btn compact" title="Zoom gallery in">+</button>
-          </div>
-          <div id="imageStage" class="image-stage gallery-stage">
-            <div id="galleryZoomWrap" class="gallery-zoom-wrap">
-              <div id="galleryBoard" class="gallery-board student-gallery-board">
-                <div class="gallery-grid"></div>
-                <div id="galleryImagesLayer" class="gallery-images-layer"></div>
-                <canvas id="galleryOverlayCanvas" class="gallery-overlay"></canvas>
-              </div>
-            </div>
-          </div>
+          <div class="image-toolbar gallery-toolbar"><strong id="studentImageTitle">Teacher image boards</strong><span id="imageCounter">0 images</span></div>
         </section>
       </aside>
     </section>
@@ -101,7 +59,7 @@
     <footer class="statusbar"><span id="statusText">View only</span><span id="liveText">Live</span></footer>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script type="module" src="viewer.js"></script>
+  <script type="module" src="v313-viewer-loader.js"></script>
   <script type="module" src="v312-imageboards.js"></script>
 </body>
 </html>
