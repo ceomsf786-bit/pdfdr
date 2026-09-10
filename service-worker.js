@@ -1,13 +1,10 @@
+// v3.14 true solid shape fills
 // v3.13 image-board annotations + editable/fillable PDF shapes + PDF insertion
 // v3.12 global image boards + live-view schema fix
 // v3.11 shared library/categories/master backup
 // v3.10 backup/import + teaching flow
-// v3.9 gallery drag/pan/draw fix
-// v3.8 freeform gallery board
-// v3.7 global gallery + image annotations
-// v3.6 realtime annotations + rich notes + student pan
-const CACHE = 'snt-pdf-static-v3-13';
-const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./v313-viewer-loader.js','./v313-pdf-insert.js','./config.js','./v310-backup.css','./v310-backup.js','./v311-library.css','./v311-library.js','./v312-imageboards.css','./v312-imageboards.js'];
+const CACHE = 'snt-pdf-static-v3-14';
+const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./v313-viewer-loader.js','./v314-viewer-loader.js','./v313-pdf-insert.js','./config.js','./v310-backup.css','./v310-backup.js','./v311-library.css','./v311-library.js','./v312-imageboards.css','./v312-imageboards.js','./v314-imageboards.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(()=>{}));
