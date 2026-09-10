@@ -22,6 +22,17 @@ if (!response.ok) {
   src=src.replaceAll('o.fillOpacity??.22','o.fillOpacity??1');
   src=src.replaceAll('fillOpacity:.22','fillOpacity:fillOpacity()');
   src=src.replaceAll('o.fillOpacity=.22','o.fillOpacity=fillOpacity()');
+  src=src.replaceAll('Number(o.fillOpacity??1)','Number(o.fillOpacity===.22?1:(o.fillOpacity??1))');
+
+  patch(
+    "const hit=hitTest(p);state.selectedObject=hit?.id||null;drawOverlay();",
+    "const hit=hitTest(p);state.selectedObject=hit?.id||null;syncSelectedStyleControls(hit);drawOverlay();"
+  );
+
+  patch(
+    "function applyFillToSelected(){",
+    "function syncSelectedStyleControls(o){if(!TEACHER||!o)return;if($('colorInput')&&o.color)$('colorInput').value=o.color;if(o.type==='rect'||o.type==='ellipse'){if($('shapeFillToggle'))$('shapeFillToggle').checked=!!o.fill;if($('shapeFillColor')&&(o.fillColor||o.color))$('shapeFillColor').value=o.fillColor||o.color;const op=o.fillOpacity===.22?1:Number(o.fillOpacity??1);if($('shapeFillOpacity'))$('shapeFillOpacity').value=String(Math.round(clamp(op,0,1)*100));if($('shapeFillOpacityValue'))$('shapeFillOpacityValue').textContent=($('shapeFillOpacity')?.value||100)+'%';}}\nfunction applyFillToSelected(){"
+  );
 
   patch(
     "remember();o.fill=fillEnabled();o.fillColor=fillColor();o.fillOpacity=fillOpacity();drawOverlay();scheduleSave();",
