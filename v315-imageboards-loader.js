@@ -10,19 +10,16 @@ function replaceRequired(oldText,newText,label){
   src=src.replace(oldText,newText);
 }
 
-// Blob modules cannot resolve a relative config import.
 replaceRequired("import { CONFIG } from './config.js';",`import { CONFIG } from '${configUrl}';`,'config import');
-
 replaceRequired(
   "function fillColor(){return $('shapeFillColor')?.value||strokeColor();}",
-  "function fillColor(){return $('shapeFillColor')?.value||strokeColor();}\nfunction fillOpacity(){return clamp(Number($('shapeFillOpacity')?.value??100)/100,0,1);}",
+  "function fillColor(){return $('shapeFillColor')?.value||strokeColor();}\nfunction fillOpacity(){return clamp(Number($('shapeFillOpacity')?.value??100)/100,0,1);}\nfunction objectFillOpacity(o){const n=Number(o?.fillOpacity);if(Math.abs(n-.22)<.0001)return 1;return Number.isFinite(n)?clamp(n,0,1):fillOpacity();}",
   'opacity helper'
 );
 
-src=src.replaceAll('o.fillOpacity??.22','o.fillOpacity??fillOpacity()');
+src=src.replaceAll('o.fillOpacity??.22','objectFillOpacity(o)');
 src=src.replaceAll('fillOpacity:.22','fillOpacity:fillOpacity()');
 src=src.replaceAll('o.fillOpacity=.22','o.fillOpacity=fillOpacity()');
-
 replaceRequired(
   "$('shapeFillColor')?.addEventListener('input',applyFillToSelected);",
   "$('shapeFillColor')?.addEventListener('input',applyFillToSelected);$('shapeFillOpacity')?.addEventListener('input',applyFillToSelected);",
