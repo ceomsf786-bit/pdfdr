@@ -1,5 +1,6 @@
 // SNT PDF Annotator v3.15 — image boards with teacher-controlled fill opacity.
 const sourceUrl = new URL('./v312-imageboards.js', location.href);
+const configUrl = new URL('./config.js', location.href).href;
 const response = await fetch(sourceUrl, { cache: 'no-store' });
 if (!response.ok) throw new Error('Could not load image boards.');
 let src = await response.text();
@@ -8,6 +9,9 @@ function replaceRequired(oldText,newText,label){
   if(!src.includes(oldText)) throw new Error(`Image-board upgrade mismatch: ${label}`);
   src=src.replace(oldText,newText);
 }
+
+// Blob modules cannot resolve a relative config import.
+replaceRequired("import { CONFIG } from './config.js';",`import { CONFIG } from '${configUrl}';`,'config import');
 
 replaceRequired(
   "function fillColor(){return $('shapeFillColor')?.value||strokeColor();}",
