@@ -1,17 +1,22 @@
-/* SNT PDF Annotator v3.12 — global image boards */
+/* SNT PDF Annotator v3.13 — global image boards with PDF-style annotations */
 .image-board-shell{height:100%;min-height:220px;display:flex;flex-direction:column;background:#f7f9fa;border-top:1px solid #dbe3e8}
-.image-board-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:7px;background:#fff;border-bottom:1px solid #dbe3e8;position:relative;z-index:5}
+.image-board-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:7px;background:#fff;border-bottom:1px solid #dbe3e8;position:relative;z-index:30}
 .image-board-toolbar strong{white-space:nowrap}.image-board-toolbar .spacer{flex:1}.image-board-toolbar input[type=text]{min-width:135px;max-width:230px;height:31px;border:1px solid #cbd5dc;border-radius:7px;padding:4px 8px;font-weight:700}.image-board-toolbar select{height:31px;max-width:180px;border:1px solid #cbd5dc;border-radius:7px;background:#fff;padding:3px 7px}
 .image-board-stage{position:relative;flex:1;min-height:180px;overflow:auto;background:#dfe5e8;overscroll-behavior:contain;touch-action:pan-x pan-y;cursor:default}
 .image-board-stage.pan-mode{cursor:grab;touch-action:none}.image-board-stage.pan-mode.dragging{cursor:grabbing}
 .image-board-zoom-wrap{position:relative;transform-origin:top left;width:max-content;height:max-content;padding:18px}
 .image-board-canvas{position:relative;width:1600px;height:1000px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.16);background-image:linear-gradient(#edf1f3 1px,transparent 1px),linear-gradient(90deg,#edf1f3 1px,transparent 1px);background-size:40px 40px;overflow:hidden}
-.image-board-empty{position:absolute;inset:0;display:grid;place-items:center;color:#71808a;font-weight:700;pointer-events:none;text-align:center;padding:30px}
-.image-board-tile{position:absolute;box-sizing:border-box;user-select:none;touch-action:none;border:2px solid transparent;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.14)}
+.image-board-empty{position:absolute;inset:0;display:grid;place-items:center;color:#71808a;font-weight:700;pointer-events:none;text-align:center;padding:30px;z-index:0}
+.image-board-tile{position:absolute;box-sizing:border-box;user-select:none;touch-action:none;border:2px solid transparent;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.14);z-index:10}
 .image-board-tile.selected{border-color:#1f7a62;box-shadow:0 0 0 2px rgba(31,122,98,.15),0 2px 8px rgba(0,0,0,.18)}
 .image-board-tile img{width:100%;height:100%;display:block;object-fit:contain;pointer-events:none;background:#fff}
 .image-board-resize{position:absolute;right:-7px;bottom:-7px;width:17px;height:17px;border-radius:50%;background:#1f7a62;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:nwse-resize}
 .image-board-delete-image{position:absolute;right:3px;top:3px;width:25px;height:25px;border:0;border-radius:50%;background:rgba(183,28,28,.88);color:#fff;font-weight:900;cursor:pointer;display:none}.image-board-tile.selected .image-board-delete-image{display:block}
+.image-board-annotation-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:20;touch-action:none;pointer-events:auto}
+.image-board-canvas.arrange-mode .image-board-annotation-canvas,.image-board-canvas.pan-board-mode .image-board-annotation-canvas{pointer-events:none}
+.image-board-canvas.draw-mode .image-board-tile{pointer-events:none}.image-board-canvas.arrange-mode .image-board-tile{pointer-events:auto}
+.image-board-mode.active{box-shadow:inset 0 0 0 2px #147a5a;background:#edf8f4}
+.image-board-hint{font-size:.7rem;font-weight:700;color:#52616b;white-space:nowrap}
 .image-board-status{font-size:.72rem;font-weight:700;color:#687781;white-space:nowrap}.image-board-badge{font-size:.68rem;font-weight:800;border-radius:999px;background:#edf6f2;color:#17684e;padding:3px 8px}
-body[data-mode=student] .image-board-tile{touch-action:pan-x pan-y;box-shadow:0 1px 4px rgba(0,0,0,.12)}body[data-mode=student] .image-board-stage{min-height:180px}body[data-mode=student] .image-board-toolbar{position:sticky;top:0}
-@media(max-width:700px){.image-board-toolbar{gap:4px}.image-board-toolbar input[type=text],.image-board-toolbar select{max-width:150px}.image-board-zoom-wrap{padding:10px}}
+body[data-mode=student] .image-board-tile{touch-action:pan-x pan-y;box-shadow:0 1px 4px rgba(0,0,0,.12)}body[data-mode=student] .image-board-stage{min-height:180px}body[data-mode=student] .image-board-toolbar{position:sticky;top:0}body[data-mode=student] .image-board-annotation-canvas{pointer-events:none}
+@media(max-width:700px){.image-board-toolbar{gap:4px}.image-board-toolbar input[type=text],.image-board-toolbar select{max-width:150px}.image-board-zoom-wrap{padding:10px}.image-board-hint{white-space:normal}}
