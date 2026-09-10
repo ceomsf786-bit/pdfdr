@@ -1,10 +1,10 @@
-// v3.16.1 safe opacity + selected existing shape colour/opacity
-// v3.15.1 recovery hotfix
+// v3.17 direct shape editor: working opacity + selected colour/width/fill
+// v3.16.1 safe opacity experiments
 // v3.15 board links + notes/image-board PDF export
 // v3.14 solid shape fills
 // v3.13 image-board annotations + editable/fillable PDF shapes + PDF insertion
-const CACHE = 'snt-pdf-static-v3-16-1';
-const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./v313-viewer-loader.js','./v314-viewer-loader.js','./v315-viewer-loader.js','./v316-viewer-loader.js','./v313-pdf-insert.js','./config.js','./v310-backup.css','./v310-backup.js','./v311-library.css','./v311-library.js','./v312-imageboards.css','./v312-imageboards.js','./v314-imageboards.js','./v315-imageboards-loader.js','./v316-imageboards-loader.js','./v315-ui.css','./v315-board-tools.js'];
+const CACHE = 'snt-pdf-static-v3-17';
+const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./v313-viewer-loader.js','./v314-viewer-loader.js','./v315-viewer-loader.js','./v316-viewer-loader.js','./v317-viewer-loader.js','./v313-pdf-insert.js','./config.js','./v310-backup.css','./v310-backup.js','./v311-library.css','./v311-library.js','./v312-imageboards.css','./v312-imageboards.js','./v314-imageboards.js','./v315-imageboards-loader.js','./v316-imageboards-loader.js','./v315-ui.css','./v315-board-tools.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(()=>{}));
