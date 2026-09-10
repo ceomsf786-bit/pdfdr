@@ -1,10 +1,11 @@
+// v3.15.1 HOTFIX — restore stable viewer/image-board loaders
 // v3.15 opacity levels + fixed toolbar + board links + notes/image-board PDF export
 // v3.14 true solid shape fills
 // v3.13 image-board annotations + editable/fillable PDF shapes + PDF insertion
 // v3.12 global image boards + live-view schema fix
 // v3.11 shared library/categories/master backup
 // v3.10 backup/import + teaching flow
-const CACHE = 'snt-pdf-static-v3-15';
+const CACHE = 'snt-pdf-static-v3-15-1';
 const STATIC = ['./','./index.html','./teacher.html','./viewer.css','./viewer.js','./v313-viewer-loader.js','./v314-viewer-loader.js','./v315-viewer-loader.js','./v313-pdf-insert.js','./config.js','./v310-backup.css','./v310-backup.js','./v311-library.css','./v311-library.js','./v312-imageboards.css','./v312-imageboards.js','./v314-imageboards.js','./v315-imageboards-loader.js','./v315-ui.css','./v315-board-tools.js'];
 
 self.addEventListener('install', event => {
