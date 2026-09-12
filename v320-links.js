@@ -1,6 +1,10 @@
 import { CONFIG } from './config.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
+if(!document.querySelector('link[data-snt-links-css]')){
+  const css=document.createElement('link');css.rel='stylesheet';css.href='./v320-links.css';css.dataset.sntLinksCss='1';document.head.appendChild(css);
+}
+
 const TEACHER = document.body.dataset.mode === 'teacher';
 const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_PUBLISHABLE_KEY);
 const API = `${CONFIG.SUPABASE_URL.replace(/\/$/,'')}/functions/v1/snt-pdf-links-api`;
@@ -34,7 +38,7 @@ function buildUi(){
   if(!actions)return;
   btn=document.createElement('button');
   btn.type='button';btn.className='btn compact snt-links-btn';btn.textContent='🔗 Links';btn.title=TEACHER?'Save useful links for this PDF':'Open teacher links';
-  const anchor=TEACHER?$('toggleBoard'):$('toggleBoard');
+  const anchor=$('toggleBoard');
   if(anchor?.parentNode===actions) actions.insertBefore(btn,anchor);
   else actions.appendChild(btn);
 
