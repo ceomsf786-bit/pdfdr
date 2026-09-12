@@ -81,33 +81,43 @@ function wireStudentDivider(pdfArea){
   let dragging=false;
   let pointerId=null;
 
+  const applyPosition=evt=>{
+    if(!dragging)return;
+    const rect=pdfArea.getBoundingClientRect();
+    if(!rect.height)return;
+    let pct=((evt.clientY-rect.top)/rect.height)*100;
+    pct=Math.max(20,Math.min(78,pct));
+    const value=`${pct.toFixed(1)}%`;
+    pdfArea.style.setProperty('--snt-pdf-link-top',value);
+    try{localStorage.setItem('sntPdfLinkTop',value);}catch{}
+    if(evt.cancelable)evt.preventDefault();
+  };
+
+  const stop=()=>{
+    if(!dragging)return;
+    dragging=false;
+    if(pointerId!==null){try{studentDivider.releasePointerCapture?.(pointerId);}catch{}}
+    pointerId=null;
+    studentDivider.classList.remove('dragging');
+    if(studentFrame)studentFrame.style.pointerEvents='';
+  };
+
   studentDivider.addEventListener('pointerdown',evt=>{
     if($('workspace')?.classList.contains('snt-link-maximised'))return;
     dragging=true;
     pointerId=evt.pointerId;
     studentDivider.classList.add('dragging');
-    studentDivider.setPointerCapture?.(pointerId);
-    evt.preventDefault();
+    if(studentFrame)studentFrame.style.pointerEvents='none';
+    try{studentDivider.setPointerCapture?.(pointerId);}catch{}
+    if(evt.cancelable)evt.preventDefault();
   });
 
-  studentDivider.addEventListener('pointermove',evt=>{
-    if(!dragging)return;
-    const rect=pdfArea.getBoundingClientRect();
-    if(!rect.height)return;
-    let pct=((evt.clientY-rect.top)/rect.height)*100;
-    pct=Math.max(24,Math.min(72,pct));
-    const value=`${pct.toFixed(1)}%`;
-    pdfArea.style.setProperty('--snt-pdf-link-top',value);
-    try{localStorage.setItem('sntPdfLinkTop',value);}catch{}
-  });
-
-  const stop=()=>{
-    dragging=false;
-    pointerId=null;
-    studentDivider.classList.remove('dragging');
-  };
-  studentDivider.addEventListener('pointerup',stop);
-  studentDivider.addEventListener('pointercancel',stop);
+  /* Listen on window so the drag keeps working even when the finger/mouse
+     leaves the narrow splitter or passes over the embedded iframe. */
+  window.addEventListener('pointermove',applyPosition,{passive:false});
+  window.addEventListener('pointerup',stop);
+  window.addEventListener('pointercancel',stop);
+  window.addEventListener('blur',stop);
 }
 
 function ensureStudentViewer(){
