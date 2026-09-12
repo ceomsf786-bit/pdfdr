@@ -44,7 +44,7 @@ function embedHref(raw){
 }
 
 let panel,listEl,titleInput,urlInput,btn;
-let studentViewer=null,studentFrame=null,studentViewerTitle=null,studentExternal=null,studentMaxBtn=null;
+let studentViewer=null,studentFrame=null,studentViewerTitle=null,studentExternal=null,studentMaxBtn=null,studentDivider=null;
 
 function buildUi(){
   if(document.querySelector('.snt-links-btn'))return;
@@ -76,27 +76,71 @@ function buildUi(){
   panel.querySelector('[data-form]')?.addEventListener('submit',saveLink);
 }
 
+function wireStudentDivider(pdfArea){
+  if(!studentDivider)return;
+  let dragging=false;
+  let pointerId=null;
+
+  studentDivider.addEventListener('pointerdown',evt=>{
+    if($('workspace')?.classList.contains('snt-link-maximised'))return;
+    dragging=true;
+    pointerId=evt.pointerId;
+    studentDivider.classList.add('dragging');
+    studentDivider.setPointerCapture?.(pointerId);
+    evt.preventDefault();
+  });
+
+  studentDivider.addEventListener('pointermove',evt=>{
+    if(!dragging)return;
+    const rect=pdfArea.getBoundingClientRect();
+    if(!rect.height)return;
+    let pct=((evt.clientY-rect.top)/rect.height)*100;
+    pct=Math.max(24,Math.min(72,pct));
+    const value=`${pct.toFixed(1)}%`;
+    pdfArea.style.setProperty('--snt-pdf-link-top',value);
+    try{localStorage.setItem('sntPdfLinkTop',value);}catch{}
+  });
+
+  const stop=()=>{
+    dragging=false;
+    pointerId=null;
+    studentDivider.classList.remove('dragging');
+  };
+  studentDivider.addEventListener('pointerup',stop);
+  studentDivider.addEventListener('pointercancel',stop);
+}
+
 function ensureStudentViewer(){
   if(TEACHER)return null;
   if(studentViewer?.isConnected)return studentViewer;
   const pdfArea=document.querySelector('.pdf-area');
   if(!pdfArea)return null;
 
+  try{pdfArea.style.setProperty('--snt-pdf-link-top',localStorage.getItem('sntPdfLinkTop')||'48%');}catch{pdfArea.style.setProperty('--snt-pdf-link-top','48%');}
+
+  studentDivider=document.createElement('div');
+  studentDivider.className='snt-pdf-link-splitter hidden';
+  studentDivider.title='Drag to resize PDF and website';
+  studentDivider.innerHTML='<span>↕ PDF / WEBSITE ↕</span>';
+
   studentViewer=document.createElement('section');
   studentViewer.className='snt-student-link-viewer hidden';
   studentViewer.innerHTML=`
     <div class="snt-student-link-head">
-      <div class="snt-student-link-title"><strong data-view-title>Website</strong><small>Opened inside SNT</small></div>
+      <div class="snt-student-link-title"><strong data-view-title>Website</strong><small>Opened inside SNT • PDF remains above</small></div>
       <div class="snt-student-link-actions">
-        <button type="button" class="btn compact" data-max-link>Maximise</button>
+        <button type="button" class="btn compact" data-max-link>Maximise website</button>
         <a class="btn compact" data-open-external target="_blank" rel="noopener noreferrer">Open externally</a>
-        <button type="button" class="btn compact" data-back-pdf>← Back to PDF</button>
+        <button type="button" class="btn compact" data-back-pdf>← Close website</button>
       </div>
     </div>
     <div class="snt-student-link-fallback">If this site refuses to display here because of its own security settings, use <strong>Open externally</strong>.</div>
     <iframe class="snt-student-link-frame" title="Teacher link" loading="eager" referrerpolicy="no-referrer-when-downgrade" sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-downloads"></iframe>`;
 
+  pdfArea.appendChild(studentDivider);
   pdfArea.appendChild(studentViewer);
+  wireStudentDivider(pdfArea);
+
   studentFrame=studentViewer.querySelector('iframe');
   studentViewerTitle=studentViewer.querySelector('[data-view-title]');
   studentExternal=studentViewer.querySelector('[data-open-external]');
@@ -107,7 +151,7 @@ function ensureStudentViewer(){
     const workspace=$('workspace');
     if(!workspace)return;
     const max=workspace.classList.toggle('snt-link-maximised');
-    studentMaxBtn.textContent=max?'↕ Split view':'Maximise';
+    studentMaxBtn.textContent=max?'↕ Split PDF + website':'Maximise website';
   });
   return studentViewer;
 }
@@ -122,11 +166,12 @@ function openStudentResource(href,title){
 
   panel?.classList.add('hidden');
   pdfArea?.classList.add('snt-link-opened');
+  studentDivider?.classList.remove('hidden');
   viewer.classList.remove('hidden');
   studentViewerTitle.textContent=title||external;
   studentExternal.href=external;
   studentFrame.src=embedded;
-  $('statusText') && ($('statusText').textContent='Viewing teacher link inside SNT');
+  $('statusText') && ($('statusText').textContent='PDF + teacher link split view');
 }
 
 function closeStudentResource(){
@@ -134,7 +179,8 @@ function closeStudentResource(){
   const workspace=$('workspace');
   pdfArea?.classList.remove('snt-link-opened');
   workspace?.classList.remove('snt-link-maximised');
-  if(studentMaxBtn)studentMaxBtn.textContent='Maximise';
+  studentDivider?.classList.add('hidden');
+  if(studentMaxBtn)studentMaxBtn.textContent='Maximise website';
   if(studentFrame)studentFrame.src='about:blank';
   studentViewer?.classList.add('hidden');
   $('statusText') && ($('statusText').textContent='View only');
