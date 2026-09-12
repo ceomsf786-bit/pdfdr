@@ -1,4 +1,4 @@
-/* SNT PDF Annotator v3.21 — saved teacher links + same-page student viewer */
+/* SNT PDF Annotator v3.22 — saved links + PDF/website student split view */
 .snt-links-btn{white-space:nowrap}
 .snt-links-panel{position:fixed;right:12px;bottom:38px;z-index:120;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line,#d7dfe7);border-radius:14px;box-shadow:0 12px 36px rgba(20,30,45,.22);overflow:hidden}
 .snt-links-panel.hidden{display:none!important}
@@ -16,23 +16,53 @@
 .snt-link-delete{border:0;background:transparent;color:#b42318;font-size:1rem;padding:5px 7px;border-radius:7px}.snt-link-delete:hover{background:#fff1f0}
 .snt-links-note{font-size:.68rem;color:var(--muted,#687386)}
 
-/* Student: clicked links replace only the PDF viewport, never the whole app. */
-.snt-student-link-viewer{flex:1;min-height:0;display:flex;flex-direction:column;background:#fff;overflow:hidden}
+/* Student: PDF stays above and the clicked website opens below it. */
+body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{
+  flex:0 0 var(--snt-pdf-link-top,48%);
+  min-height:120px;
+}
+
+.snt-pdf-link-splitter{
+  flex:0 0 20px;
+  min-height:20px;
+  display:grid;
+  place-items:center;
+  background:#d6e0e6;
+  border-top:1px solid #bac8d0;
+  border-bottom:1px solid #bac8d0;
+  cursor:row-resize;
+  touch-action:none;
+  user-select:none;
+  z-index:45;
+}
+.snt-pdf-link-splitter.hidden{display:none!important}
+.snt-pdf-link-splitter:hover,.snt-pdf-link-splitter.dragging{background:#9fd4c3}
+.snt-pdf-link-splitter span{pointer-events:none;font-size:.64rem;font-weight:800;letter-spacing:.06em;color:#48606d;background:#fff;padding:2px 10px;border:1px solid #bdcbd3;border-radius:999px;white-space:nowrap}
+
+.snt-student-link-viewer{flex:1 1 0;min-height:120px;display:flex;flex-direction:column;background:#fff;overflow:hidden}
 .snt-student-link-viewer.hidden{display:none!important}
 .snt-student-link-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;background:#fff;border-bottom:1px solid var(--line,#d7dfe7)}
 .snt-student-link-title{min-width:0;display:flex;flex-direction:column}.snt-student-link-title strong,.snt-student-link-title small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.snt-student-link-title small{font-size:.68rem;color:var(--muted,#687386)}
 .snt-student-link-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .snt-student-link-fallback{flex:0 0 auto;padding:4px 8px;background:#fff8e8;border-bottom:1px solid #ecd7a4;color:#725312;font-size:.7rem}
 .snt-student-link-frame{flex:1;min-height:0;width:100%;border:0;background:#fff}
-body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{display:none!important}
-body[data-mode=student] .pdf-area.snt-link-opened #followHint{display:none!important}
+
+/* Website maximise is optional. Split view returns PDF + website together. */
 body[data-mode=student] .student-workspace.snt-link-maximised{grid-template-rows:minmax(0,1fr) 0 0}
 body[data-mode=student] .student-workspace.snt-link-maximised #studentSplit,
 body[data-mode=student] .student-workspace.snt-link-maximised #boardPanel{display:none!important}
+body[data-mode=student] .student-workspace.snt-link-maximised .pdf-area #pdfScroller,
+body[data-mode=student] .student-workspace.snt-link-maximised .pdf-area #followHint,
+body[data-mode=student] .student-workspace.snt-link-maximised .snt-pdf-link-splitter{display:none!important}
+body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-viewer{flex:1 1 auto;min-height:0}
 
 @media(max-width:650px){
   .snt-links-panel{right:8px;bottom:32px;width:calc(100vw - 16px);max-height:62vh}
   .snt-links-btn{min-width:auto!important}
+  body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{flex-basis:46%;min-height:105px}
+  .snt-pdf-link-splitter{flex-basis:24px;min-height:24px}
+  .snt-pdf-link-splitter span{font-size:.61rem;padding:2px 7px}
+  .snt-student-link-viewer{min-height:130px}
   .snt-student-link-head{align-items:flex-start;flex-direction:column;padding:6px}
   .snt-student-link-actions{width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding-bottom:1px}
   .snt-student-link-actions .btn{white-space:nowrap;min-width:max-content}
