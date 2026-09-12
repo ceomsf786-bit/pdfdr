@@ -1,4 +1,4 @@
-/* SNT PDF Annotator v3.22 — saved links + PDF/website student split view */
+/* SNT PDF Annotator v3.23 — mobile notes visibility + reliable PDF/website split drag */
 .snt-links-btn{white-space:nowrap}
 .snt-links-panel{position:fixed;right:12px;bottom:38px;z-index:120;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line,#d7dfe7);border-radius:14px;box-shadow:0 12px 36px rgba(20,30,45,.22);overflow:hidden}
 .snt-links-panel.hidden{display:none!important}
@@ -23,16 +23,17 @@ body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{
 }
 
 .snt-pdf-link-splitter{
-  flex:0 0 20px;
-  min-height:20px;
+  flex:0 0 22px;
+  min-height:22px;
   display:grid;
   place-items:center;
   background:#d6e0e6;
   border-top:1px solid #bac8d0;
   border-bottom:1px solid #bac8d0;
   cursor:row-resize;
-  touch-action:none;
+  touch-action:none!important;
   user-select:none;
+  -webkit-user-select:none;
   z-index:45;
 }
 .snt-pdf-link-splitter.hidden{display:none!important}
@@ -59,9 +60,33 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
 @media(max-width:650px){
   .snt-links-panel{right:8px;bottom:32px;width:calc(100vw - 16px);max-height:62vh}
   .snt-links-btn{min-width:auto!important}
-  body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{flex-basis:46%;min-height:105px}
-  .snt-pdf-link-splitter{flex-basis:24px;min-height:24px}
-  .snt-pdf-link-splitter span{font-size:.61rem;padding:2px 7px}
+
+  /* Keep Notes and Links at the visible start of the portrait toolbar. */
+  body[data-mode=student] .student-topbar .top-actions #toggleBoard{
+    order:-30;
+    flex:0 0 auto;
+    min-width:max-content!important;
+    background:var(--accent-soft,#e8f6f1);
+    border-color:#9fd4c3;
+    color:var(--accent,#147a5a);
+    font-weight:800;
+  }
+  body[data-mode=student] .student-topbar .top-actions .snt-links-btn{
+    order:-29;
+    flex:0 0 auto;
+  }
+
+  /* IMPORTANT: keep using the live custom split value on mobile too.
+     v3.22 accidentally forced 46%, which made the drag handle look dead. */
+  body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{
+    flex-basis:var(--snt-pdf-link-top,46%);
+    min-height:105px;
+  }
+  .snt-pdf-link-splitter{
+    flex-basis:34px;
+    min-height:34px;
+  }
+  .snt-pdf-link-splitter span{font-size:.65rem;padding:4px 10px}
   .snt-student-link-viewer{min-height:130px}
   .snt-student-link-head{align-items:flex-start;flex-direction:column;padding:6px}
   .snt-student-link-actions{width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding-bottom:1px}
