@@ -1,4 +1,4 @@
-/* SNT PDF Annotator v3.23 — mobile notes visibility + reliable PDF/website split drag */
+/* SNT PDF Annotator v3.24 — portrait student toolbar + reliable PDF/website split drag */
 .snt-links-btn{white-space:nowrap}
 .snt-links-panel{position:fixed;right:12px;bottom:38px;z-index:120;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line,#d7dfe7);border-radius:14px;box-shadow:0 12px 36px rgba(20,30,45,.22);overflow:hidden}
 .snt-links-panel.hidden{display:none!important}
@@ -61,23 +61,46 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
   .snt-links-panel{right:8px;bottom:32px;width:calc(100vw - 16px);max-height:62vh}
   .snt-links-btn{min-width:auto!important}
 
-  /* Keep Notes and Links at the visible start of the portrait toolbar. */
-  body[data-mode=student] .student-topbar .top-actions #toggleBoard{
-    order:-30;
-    flex:0 0 auto;
+  /* Portrait toolbar: page movement + Fit always visible on row 1.
+     Zoom, Notes and Links stay visible on row 2 — no sideways hunting. */
+  body[data-mode=student] .student-topbar .top-actions{
+    display:grid!important;
+    grid-template-columns:38px minmax(82px,1fr) 38px 54px;
+    grid-template-rows:auto auto;
+    width:100%;
+    max-width:none!important;
+    overflow:visible!important;
+    flex-wrap:unset!important;
+    justify-content:stretch!important;
+    align-items:center;
+    gap:4px;
+    padding-bottom:0;
+  }
+  body[data-mode=student] .student-topbar #prevPage{grid-column:1;grid-row:1}
+  body[data-mode=student] .student-topbar .page-box{grid-column:2;grid-row:1;min-width:0;justify-content:center}
+  body[data-mode=student] .student-topbar #pageInput{width:48px}
+  body[data-mode=student] .student-topbar #nextPage{grid-column:3;grid-row:1}
+  body[data-mode=student] .student-topbar #fitPage{grid-column:4;grid-row:1}
+  body[data-mode=student] .student-topbar #zoomOut{grid-column:1;grid-row:2}
+  body[data-mode=student] .student-topbar #zoomIn{grid-column:2;grid-row:2;justify-self:start}
+  body[data-mode=student] .student-topbar #toggleBoard{
+    grid-column:3;
+    grid-row:2;
     min-width:max-content!important;
+    justify-self:end;
     background:var(--accent-soft,#e8f6f1);
     border-color:#9fd4c3;
     color:var(--accent,#147a5a);
     font-weight:800;
   }
-  body[data-mode=student] .student-topbar .top-actions .snt-links-btn{
-    order:-29;
-    flex:0 0 auto;
+  body[data-mode=student] .student-topbar .snt-links-btn{
+    grid-column:4;
+    grid-row:2;
+    justify-self:stretch;
   }
+  body[data-mode=student] .student-topbar .top-actions .btn{min-width:0!important}
 
-  /* IMPORTANT: keep using the live custom split value on mobile too.
-     v3.22 accidentally forced 46%, which made the drag handle look dead. */
+  /* Keep using the live custom split value on mobile. */
   body[data-mode=student] .pdf-area.snt-link-opened #pdfScroller{
     flex-basis:var(--snt-pdf-link-top,46%);
     min-height:105px;
