@@ -1,0 +1,18 @@
+/* SNT PDF Annotator v3.20 — saved teacher links */
+.snt-links-btn{white-space:nowrap}
+.snt-links-panel{position:fixed;right:12px;bottom:38px;z-index:120;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line,#d7dfe7);border-radius:14px;box-shadow:0 12px 36px rgba(20,30,45,.22);overflow:hidden}
+.snt-links-panel.hidden{display:none!important}
+.snt-links-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border-bottom:1px solid var(--line,#d7dfe7);background:#fbfcfd}
+.snt-links-head strong{font-size:.9rem}
+.snt-links-body{overflow:auto;padding:9px;display:flex;flex-direction:column;gap:8px}
+.snt-links-form{display:grid;gap:6px;padding:8px;border:1px solid var(--line,#d7dfe7);border-radius:10px;background:#f8fafb}
+.snt-links-form input{min-height:36px;border:1px solid var(--line,#d7dfe7);border-radius:8px;padding:7px 8px;background:#fff;color:var(--text,#172033)}
+.snt-links-list{display:flex;flex-direction:column;gap:6px}
+.snt-link-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center;padding:8px;border:1px solid var(--line,#d7dfe7);border-radius:10px;background:#fff}
+.snt-link-open{min-width:0;text-decoration:none;color:#0b61c9;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snt-link-open:hover{text-decoration:underline}
+.snt-link-url{display:block;color:var(--muted,#687386);font-size:.68rem;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.snt-link-empty{padding:14px;text-align:center;color:var(--muted,#687386);font-size:.82rem}
+.snt-link-delete{border:0;background:transparent;color:#b42318;font-size:1rem;padding:5px 7px;border-radius:7px}.snt-link-delete:hover{background:#fff1f0}
+.snt-links-note{font-size:.68rem;color:var(--muted,#687386)}
+@media(max-width:650px){.snt-links-panel{right:8px;bottom:32px;width:calc(100vw - 16px);max-height:62vh}.snt-links-btn{min-width:auto!important}}
