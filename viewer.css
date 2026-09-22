@@ -326,3 +326,12 @@ body[data-mode=student] .gallery-overlay{pointer-events:none}
 .gallery-board.arrange-mode:active{cursor:grabbing}
 .gallery-tile{will-change:left,top,width,height}
 .gallery-tile img{object-fit:contain}
+
+
+/* v3.25 — dated class notes */
+.class-date-edit{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;color:var(--muted);font-weight:700}
+.class-date-edit input{height:28px;border:1px solid var(--line);border-radius:6px;padding:2px 5px;background:#fff;color:var(--text)}
+.class-note-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.class-note-head strong{margin-bottom:0!important}
+.class-note-date{flex:0 0 auto;font-size:.7rem;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 7px}
+@media(max-width:650px){.class-note-head{align-items:flex-start;flex-direction:column;gap:3px}.class-date-edit{width:100%}.class-date-edit input{min-width:0;flex:1}}
