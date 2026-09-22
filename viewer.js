@@ -14,7 +14,7 @@ const els = {
   loading:$('loading'), error:$('error'), workspace:$('workspace'), docTitle:$('docTitle'), contextText:$('contextText'),
   pdfScroller:$('pdfScroller'), canvasWrap:$('canvasWrap'), pdfCanvas:$('pdfCanvas'), overlayCanvas:$('overlayCanvas'),
   prevPage:$('prevPage'), nextPage:$('nextPage'), pageInput:$('pageInput'), pageCount:$('pageCount'), zoomOut:$('zoomOut'), zoomIn:$('zoomIn'), fitPage:$('fitPage'),
-  boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardScopeLabel:$('boardScopeLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'),
+  boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardScopeLabel:$('boardScopeLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'), classDateInput:$('classDateInput'), classDateLabel:$('classDateLabel'),
   permanentNotesSection:$('permanentNotesSection'), permanentTitle:$('permanentTitle'), permanentText:$('permanentText'), pageNotesSection:$('pageNotesSection'), pageNotesBadge:$('pageNotesBadge'), pageNotesList:$('pageNotesList'), studentImageTitle:$('studentImageTitle'),
   boardPrev:$('boardPrev'), boardNext:$('boardNext'), boardAdd:$('boardAdd'), boardDelete:$('boardDelete'),
   imageSection:$('imageSection'), imageStage:$('imageStage'), galleryZoomWrap:$('galleryZoomWrap'), galleryBoard:$('galleryBoard'), galleryImagesLayer:$('galleryImagesLayer'), galleryOverlayCanvas:$('galleryOverlayCanvas'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), galleryArrangeBtn:$('galleryArrangeBtn'), galleryTileBtn:$('galleryTileBtn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
@@ -35,7 +35,7 @@ const state = {
   boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
   remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
-  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false
+  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false, teacherReleasing:false
 };
 
 function showError(message){
@@ -49,7 +49,7 @@ function showLoading(message='Loading…'){
 }
 function setStatus(message){ if(els.statusText) els.statusText.textContent=message; }
 // Explicit hook is authoritative. Teacher-online is only informational.
-function studentFollowActive(){ return !TEACHER && state.studentHooked; }
+function studentFollowActive(){ return !TEACHER && state.studentHooked && state.teacherOnline; }
 function updateHookButton(){
   if(!TEACHER || !els.hookStudentsBtn) return;
   els.hookStudentsBtn.textContent=state.studentHooked?'🔗 Students hooked':'⛓ Students unhooked';
@@ -113,6 +113,7 @@ function scheduleTeacherBroadcast(delay=45){
 }
 function queueRemoteTeacherView(payload){
   if(TEACHER||!payload||payload.doc_id!==state.doc?.id)return;
+  state.teacherOnline=true;
   const ts=Number(payload.sent_at||0),seq=Number(payload.seq||0);
   if(ts<state.remoteViewTs||(ts===state.remoteViewTs&&seq<=state.remoteViewSeq))return;
   state.remoteViewTs=ts;state.remoteViewSeq=seq;state.lastRealtimeAt=Date.now();
@@ -276,8 +277,9 @@ function currentBoardRealtimePayload(){
       board_no:Number(state.boardNo),
       title:(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,
       text_content:getBoardEditorStorage(),
-      board_scope:b.is_permanent?'global':'page',
+      board_scope:b.is_permanent?'global':'class',
       page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),
+      class_date:b.is_permanent?null:(b.class_date||localDateISO()),
       is_permanent:!!b.is_permanent
     },
     sent_at:Date.now()
@@ -319,7 +321,7 @@ function applyRemotePageContent(payload){
 function applyRemoteBoardContent(payload){
   if(TEACHER||!payload||payload.doc_id!==state.doc?.id||!payload.board)return;
   const b=payload.board;
-  if(!(b.is_permanent===true||(b.board_scope==='page'&&Number(b.page_no)===Number(state.pageNo))))return;
+  if(!(b.is_permanent===true||b.board_scope==='class'||b.board_scope==='page'))return;
   const i=state.boards.findIndex(x=>Number(x.board_no)===Number(b.board_no));
   if(i>=0)state.boards[i]={...state.boards[i],...b};
   else state.boards.push({...b});
@@ -758,9 +760,23 @@ async function loadTeacherPageData(force=false){
 }
 async function loadStudentPageData(){const p=await api('page',{page:state.pageNo});state.pageObjects=Array.isArray(p.objects)?p.objects:[];drawOverlay();}
 
+function localDateISO(d=new Date()){
+  const shifted=new Date(d.getTime()-d.getTimezoneOffset()*60000);
+  return shifted.toISOString().slice(0,10);
+}
+function noteDateValue(b){
+  if(b?.class_date)return String(b.class_date).slice(0,10);
+  if(b?.updated_at){const d=new Date(b.updated_at);if(!Number.isNaN(d.getTime()))return localDateISO(d);}
+  return localDateISO();
+}
+function formatClassDate(value){
+  const s=String(value||'').slice(0,10);if(!s)return 'Undated';
+  const d=new Date(s+'T12:00:00');if(Number.isNaN(d.getTime()))return s;
+  return d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+}
 function boardByNo(no=state.boardNo){return state.boards.find(b=>Number(b.board_no)===Number(no));}
 function boardIsPermanent(b=boardByNo()){return !!b?.is_permanent;}
-function boardAppliesToPage(b,page=state.pageNo){return !!b && (b.is_permanent===true || (b.board_scope==='page' && Number(b.page_no)===Number(page)));}
+function boardAppliesToPage(b,page=state.pageNo){return !!b && (b.is_permanent===true || b.board_scope==='class' || b.board_scope==='page');}
 function firstPermanentBoard(){return state.boards.find(b=>b.is_permanent===true)||state.boards[0]||null;}
 function ensureApplicableBoard(){
   if(boardAppliesToPage(boardByNo()))return;
@@ -768,7 +784,7 @@ function ensureApplicableBoard(){
 }
 async function ensurePermanentBoard(){
   if(!TEACHER||!state.doc)return;
-  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
+  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,class_date,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
   const existing=(data||[]).find(b=>b.is_permanent===true);
   if(existing)return;
   const next=Math.max(0,...(data||[]).map(x=>Number(x.board_no)))+1;
@@ -776,28 +792,36 @@ async function ensurePermanentBoard(){
 }
 async function loadTeacherBoards(){
   await ensurePermanentBoard();
-  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
-  state.boards=(data||[]).filter(b=>boardAppliesToPage(b,state.pageNo));
+  const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,class_date,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
+  state.boards=data||[];
   ensureApplicableBoard();loadBoardText(); if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery';
 }
 function renderStudentNotes(){
   if(TEACHER) return;
   const permanent=firstPermanentBoard();
-  const pageBoards=state.boards.filter(b=>!b.is_permanent && b.board_scope==='page' && Number(b.page_no)===Number(state.pageNo));
+  const classNotes=state.boards
+    .filter(b=>!b.is_permanent && (b.board_scope==='class'||b.board_scope==='page'))
+    .sort((a,b)=>{
+      const da=noteDateValue(a),db=noteDateValue(b);
+      return db.localeCompare(da)||Number(b.board_no)-Number(a.board_no);
+    });
   if(els.permanentTitle)els.permanentTitle.textContent=permanent?.title||'Permanent board';
   renderStoredBoardContent(els.permanentText,permanent?.text_content||'','No permanent notes yet.');
-  if(els.pageNotesBadge)els.pageNotesBadge.textContent=`Page ${state.pageNo}`;
+  if(els.pageNotesBadge)els.pageNotesBadge.textContent=classNotes.length?`${classNotes.length} dated note${classNotes.length===1?'':'s'}`:'By date';
   if(els.pageNotesList){
     els.pageNotesList.replaceChildren();
-    if(!pageBoards.length){
-      const empty=document.createElement('div');empty.className='page-note-empty';empty.textContent='No page notes for this page yet.';els.pageNotesList.appendChild(empty);
+    if(!classNotes.length){
+      const empty=document.createElement('div');empty.className='page-note-empty';empty.textContent='No class notes yet.';els.pageNotesList.appendChild(empty);
     }else{
-      for(const b of pageBoards){
-        const article=document.createElement('article');article.className='page-note-entry';
-        const title=document.createElement('strong');title.textContent=b.title||`Page ${state.pageNo} notes`;
+      for(const b of classNotes){
+        const article=document.createElement('article');article.className='page-note-entry class-note-entry';
+        const head=document.createElement('div');head.className='class-note-head';
+        const title=document.createElement('strong');title.textContent=b.title||'Class notes';
+        const date=document.createElement('time');date.className='class-note-date';date.dateTime=noteDateValue(b);date.textContent=formatClassDate(noteDateValue(b));
+        head.append(title,date);
         const body=document.createElement('div');body.className='page-note-body';
-        renderStoredBoardContent(body,b.text_content||'','No typed note on this board.');
-        article.append(title,body);els.pageNotesList.appendChild(article);
+        renderStoredBoardContent(body,b.text_content||'','No typed note on this class note.');
+        article.append(head,body);els.pageNotesList.appendChild(article);
       }
     }
   }
@@ -809,7 +833,7 @@ function chooseStudentImageBoard(preferred=state.liveBoardNo){
 
 async function loadStudentBoards(){
   const r=await api('boards',{page:state.pageNo});state.boards=r.boards||[];
-  if(!state.boards.length)state.boards=[{board_no:1,title:'Permanent board',text_content:'',board_scope:'global',page_no:1,is_permanent:true}];
+  if(!state.boards.length)state.boards=[{board_no:1,title:'Permanent board',text_content:'',board_scope:'global',page_no:1,class_date:null,is_permanent:true}];
   renderStudentNotes(); if(els.studentImageTitle)els.studentImageTitle.textContent='Teacher gallery';
 }
 function loadBoardText(){
@@ -818,17 +842,26 @@ function loadBoardText(){
   setBoardEditorContent(b.text_content||'');
   if(els.boardTitleInput)els.boardTitleInput.value=b.title||`Board ${state.boardNo}`;
   if(els.boardTitleDisplay)els.boardTitleDisplay.textContent=b.title||'Teacher Notepad';
-  if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':`PDF page ${b.page_no||state.pageNo}`;
-  if(els.boardScopeLabel){els.boardScopeLabel.textContent=b.is_permanent?'Permanent':`Page ${b.page_no||state.pageNo}`;els.boardScopeLabel.classList.toggle('page-scope',!b.is_permanent);}
-  if(els.boardDelete){els.boardDelete.disabled=!!b.is_permanent;els.boardDelete.title=b.is_permanent?'The permanent board cannot be deleted.':'Delete this page board';}
+  if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':'Class note';
+  if(els.boardScopeLabel){
+    els.boardScopeLabel.textContent=b.is_permanent?'Permanent':formatClassDate(noteDateValue(b));
+    els.boardScopeLabel.classList.toggle('page-scope',!b.is_permanent);
+  }
+  if(els.classDateLabel)els.classDateLabel.classList.toggle('hidden',!!b.is_permanent);
+  if(els.classDateInput){
+    els.classDateInput.disabled=!!b.is_permanent;
+    els.classDateInput.value=b.is_permanent?'':noteDateValue(b);
+  }
+  if(els.boardDelete){els.boardDelete.disabled=!!b.is_permanent;els.boardDelete.title=b.is_permanent?'The permanent board cannot be deleted.':'Delete this class note';}
   const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo));if(els.boardPrev)els.boardPrev.disabled=i<=0;if(els.boardNext)els.boardNext.disabled=i<0||i>=arr.length-1;
 }
 async function saveBoardNow(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
   const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=getBoardEditorStorage();
-  const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:b.is_permanent?'global':'page',page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
+  const classDate=b.is_permanent?null:(els.classDateInput?.value||b.class_date||localDateISO());
+  const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:b.is_permanent?'global':'class',page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),class_date:classDate,is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
   const {error}=await supabase.from('snt_pdf_boards').upsert(row,{onConflict:'document_id,page_no,board_no'});if(error){setStatus('Notepad save failed: '+error.message);return;}
-  b.title=title;b.text_content=text;broadcastBoardContent();setStatus('Notepad saved');
+  b.title=title;b.text_content=text;b.board_scope=b.is_permanent?'global':'class';b.class_date=classDate;broadcastBoardContent();setStatus('Notepad saved');
 }
 function saveBoardSoon(){
   scheduleBoardContentBroadcast(60);
@@ -836,17 +869,17 @@ function saveBoardSoon(){
   state.boardTextTimer=setTimeout(()=>saveBoardNow().catch(e=>setStatus(e.message)),180);
 }
 async function addBoard(){
-  if(!TEACHER||!state.doc)return;setStatus('Adding page board…');
+  if(!TEACHER||!state.doc)return;setStatus('Adding class note…');
   const {data:all,error:readError}=await supabase.from('snt_pdf_boards').select('board_no').eq('document_id',state.doc.id).order('board_no');if(readError)return setStatus(readError.message);
-  const next=Math.max(0,...(all||[]).map(x=>Number(x.board_no)))+1,title=`Page ${state.pageNo} board`;
-  const {data,error}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title,text_content:'',objects:[],board_scope:'page',page_no:state.pageNo,is_permanent:false}).select('board_no').single();
-  if(error)return setStatus('Could not add board: '+error.message);
-  state.boardNo=Number(data.board_no);await loadTeacherBoards();state.boardNo=Number(data.board_no);loadBoardText();await pushLiveState();broadcastContentRefresh('boards');broadcastBoardContent();setStatus('Page board added');
+  const next=Math.max(0,...(all||[]).map(x=>Number(x.board_no)))+1,classDate=localDateISO(),title='Class notes';
+  const {data,error}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title,text_content:'',objects:[],board_scope:'class',page_no:state.pageNo,class_date:classDate,is_permanent:false}).select('board_no').single();
+  if(error)return setStatus('Could not add class note: '+error.message);
+  state.boardNo=Number(data.board_no);await loadTeacherBoards();state.boardNo=Number(data.board_no);loadBoardText();await pushLiveState();broadcastContentRefresh('boards');broadcastBoardContent();setStatus('Class note added');
 }
 async function deleteBoard(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
   if(b.is_permanent)return setStatus('The permanent board cannot be deleted.');
-  if(!confirm(`Delete “${b.title||'this page board'}”?`))return;
+  if(!confirm(`Delete “${b.title||'this class note'}”?`))return;
   setStatus('Deleting board…');
   const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',b.board_no);if(error)return setStatus('Could not delete board: '+error.message);
   await loadTeacherBoards();const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;loadBoardText();await pushLiveState();broadcastContentRefresh('boards');setStatus('Board deleted');
@@ -889,6 +922,19 @@ async function pushLiveState(){
   if(!TEACHER||!state.doc||!state.pdf)return;
   const view=captureTeacherView();if(!view)return;
   const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:view.live_scroll_ratio,live_center_x:view.live_center_x,live_center_y:view.live_center_y,live_zoom:state.scale,student_hooked:state.studentHooked,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
+}
+async function releaseTeacherControl({keepalive=false,silent=false}={}){
+  if(!TEACHER||!state.doc||state.teacherReleasing)return;
+  state.teacherReleasing=true;
+  state.studentHooked=false;
+  clearInterval(state.heartbeatTimer);
+  updateHookButton();
+  broadcastTeacherView();
+  try{
+    const r=await fetch(apiUrl('teacher-leave'),{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:'{}',keepalive});
+    if(!r.ok&&!silent){const d=await r.json().catch(()=>({}));throw new Error(d.error||'Could not release students');}
+  }catch(e){if(!silent)setStatus(e.message||'Could not release students');}
+  finally{state.teacherReleasing=false;}
 }
 async function setStudentHooked(next){
   if(!TEACHER||!state.doc)return;
@@ -1120,10 +1166,11 @@ function bindTeacher(){
   els.boardClearFormat?.addEventListener('mousedown',e=>e.preventDefault());
   els.boardClearFormat?.addEventListener('click',()=>applyBoardFormat('removeFormat'));
   els.boardTitleInput?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('change',()=>{const b=boardByNo();if(b)b.title=els.boardTitleInput.value.trim()||`Board ${state.boardNo}`;broadcastBoardContent();pushLiveState();});
+  els.classDateInput?.addEventListener('change',()=>{const b=boardByNo();if(!b||b.is_permanent)return;b.class_date=els.classDateInput.value||localDateISO();loadBoardText();saveBoardSoon();broadcastContentRefresh('boards');});
   els.boardAdd?.addEventListener('click',addBoard);els.boardDelete?.addEventListener('click',deleteBoard);
   els.pasteImageBtn?.addEventListener('click',()=>els.imageFileInput?.click());els.imageFileInput?.addEventListener('change',()=>{const fs=[...(els.imageFileInput.files||[])];if(fs.length)uploadImages(fs);els.imageFileInput.value='';});els.deleteImageBtn?.addEventListener('click',deleteCurrentImage);els.galleryArrangeBtn?.addEventListener('click',()=>setGalleryArrange(!state.galleryArrange));els.galleryTileBtn?.addEventListener('click',autoTileGallery);
   document.addEventListener('paste',e=>{if(!TEACHER)return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!item)return;const file=item.getAsFile();if(file){e.preventDefault();uploadImage(file);}});
-  els.copyStudentLink?.addEventListener('click',async()=>{await copyText(studentUrl());setStatus('Student link copied');});els.hookStudentsBtn?.addEventListener('click',()=>setStudentHooked(!state.studentHooked).catch(e=>setStatus(e.message)));els.exportPdf?.addEventListener('click',exportAnnotatedPdf);els.libraryBtn?.addEventListener('click',openLibrary);els.signOutBtn?.addEventListener('click',async()=>{await supabase.auth.signOut();location.href='./teacher.html';});els.createDocBtn?.addEventListener('click',createDocumentFromForm);
+  els.copyStudentLink?.addEventListener('click',async()=>{await copyText(studentUrl());setStatus('Student link copied');});els.hookStudentsBtn?.addEventListener('click',()=>setStudentHooked(!state.studentHooked).catch(e=>setStatus(e.message)));els.exportPdf?.addEventListener('click',exportAnnotatedPdf);els.libraryBtn?.addEventListener('click',openLibrary);els.signOutBtn?.addEventListener('click',async()=>{await releaseTeacherControl({silent:true});await supabase.auth.signOut();location.href='./teacher.html';});els.createDocBtn?.addEventListener('click',createDocumentFromForm);
   els.fullscreenBtn?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch{}});
   els.focusPdfBtn?.addEventListener('click',()=>{els.workspace.classList.toggle('pdf-focus');els.focusPdfBtn.textContent=els.workspace.classList.contains('pdf-focus')?'Show tools':'PDF focus';setTimeout(()=>state.fit&&state.pdf&&renderPage(state.pageNo),80);});
   els.resetLayoutBtn?.addEventListener('click',resetLayout);
@@ -1182,6 +1229,7 @@ async function createDocumentFromForm(){
   const row={owner_id:user.id,title,drive_file_id:fileId,drive_share_url:url,student_token:randomToken(),student_link_enabled:true,student_hooked:true,live_board_no:1};const {data,error}=await supabase.from('snt_pdf_documents').insert(row).select('*').single();if(error){setStatus(error.message);return;}await supabase.from('snt_pdf_boards').insert({document_id:data.id,board_no:1,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});els.newTitle.value='';els.newDriveUrl.value='';els.libraryDialog.close();await openTeacherDocument(data);
 }
 async function openTeacherDocument(doc){
+  if(state.doc?.id&&state.doc.id!==doc.id)await releaseTeacherControl({silent:true});
   state.doc=doc;state.pageNo=Math.max(1,Number(doc.live_page||1));state.boardNo=Math.max(1,Number(doc.live_board_no||1));state.liveBoardNo=state.boardNo;state.studentHooked=doc.student_hooked!==false;state.liveImageId=doc.live_image_id||null;state.liveCenterX=Math.max(0,Math.min(1,Number(doc.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(doc.live_center_y??.5)));state.liveZoom=Number(doc.live_zoom||1);state.revision=Number(doc.revision||0);els.docTitle.textContent=doc.title;els.contextText.textContent='Teacher • live student hook • autosave';updateHookButton();history.replaceState(null,'',`./teacher.html?id=${encodeURIComponent(doc.id)}`);await loadTeacherBoards();await loadImages(true);await loadPdf();await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(true);teacherHeartbeat();clearInterval(state.heartbeatTimer);state.heartbeatTimer=setInterval(teacherHeartbeat,Number(CONFIG.TEACHER_HEARTBEAT_MS||5000));
 }
 async function handleDriveQuery(){const params=new URLSearchParams(location.search),drive=params.get('drive');if(!drive)return false;const fileId=extractDriveId(drive);if(!fileId)return false;const {data}=await supabase.from('snt_pdf_documents').select('*').eq('drive_file_id',fileId).limit(1).maybeSingle();if(data){await openTeacherDocument(data);return true;}els.newDriveUrl.value=params.get('source')||`https://drive.google.com/file/d/${fileId}/view`;els.newTitle.value=params.get('title')||'Drive PDF';await openLibrary();return true;}
@@ -1206,5 +1254,10 @@ async function bootStudent(){
   }catch(e){showError(e.message);}
 }
 
+if(TEACHER){
+  const releaseOnLeave=()=>{releaseTeacherControl({keepalive:true,silent:true});};
+  window.addEventListener('pagehide',releaseOnLeave);
+  window.addEventListener('beforeunload',releaseOnLeave);
+}
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js').catch(()=>{});}
 if(TEACHER)bootTeacher().catch(e=>showError(e.message));else bootStudent().catch(e=>showError(e.message));
