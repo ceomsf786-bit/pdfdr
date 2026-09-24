@@ -30,7 +30,7 @@ function extractDriveId(value=''){
 }
 
 async function fetchCurrentPdf(){
-  const r=await fetch(apiUrl('pdf'),{headers:await headers()});
+  const r=await fetch(apiUrl('pdf',{fresh:Date.now()}),{headers:await headers(),cache:'no-store'});
   if(!r.ok)throw new Error('Could not load the current PDF.');
   return new Uint8Array(await r.arrayBuffer());
 }
