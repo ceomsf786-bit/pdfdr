@@ -999,7 +999,9 @@ async function pollStudentSync(){
 
 async function loadPdf(){
   showLoading('Loading Google Drive PDF…');
-  const task=pdfjsLib.getDocument({url:apiUrl('pdf'),httpHeaders:authHeaders(),rangeChunkSize:524288,disableAutoFetch:true,disableStream:false,disableFontFace:false});
+  // Revision key prevents browser/PDF.js from reusing the pre-insert PDF.
+  const pdfUrl=apiUrl('pdf',{rev:state.revision||Date.now()});
+  const task=pdfjsLib.getDocument({url:pdfUrl,httpHeaders:authHeaders(),rangeChunkSize:524288,disableAutoFetch:true,disableStream:false,disableFontFace:false});
   state.pdf=await task.promise;await renderPage(state.pageNo,TEACHER);if(TEACHER)window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));
 }
 async function prefetchAdjacent(){
