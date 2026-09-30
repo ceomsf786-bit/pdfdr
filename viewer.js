@@ -35,7 +35,8 @@ const state = {
   boardOpen:true, pdfOpen:true, globalNotesOpen:true, classNotesOpen:true, imagesOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
   remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
-  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false, teacherReleasing:false
+  pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false, teacherReleasing:false,
+  bookPages:[], bookSequence:[], bookIndex:0, permanentNote:null, bookPage:null, bookSaveTimer:null
 };
 
 function showError(message){
@@ -1394,3 +1395,103 @@ if(TEACHER){
 }
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js').catch(()=>{});}
 if(TEACHER)bootTeacher().catch(e=>showError(e.message));else bootStudent().catch(e=>showError(e.message));
+
+
+/* v3.31 continuous book layer */
+const bookEls={page:$('bookPage'),title:$('bookPageTitle'),editor:$('bookNoteEditor'),imageHost:$('bookImageHost'),insert:$('insertBookPageBtn'),permanent:$('permanentNoteBtn'),modal:$('permanentNoteModal'),permTitle:$('permanentNoteTitle'),permEditor:$('permanentNoteEditor')};
+function bookToken(){return new URLSearchParams(location.hash.replace(/^#/,'')).get('t');}
+function buildBookSequence(){
+ const n=state.pdf?.numPages||0, out=[];
+ for(let p=1;p<=n;p++){
+  out.push({key:'pdf:'+p,kind:'pdf',pdfPage:p,title:'PDF page '+p});
+  state.bookPages.filter(x=>Number(x.anchor_pdf_page)===p).sort((a,b)=>Number(a.sort_no)-Number(b.sort_no)).forEach(x=>out.push({...x,key:'insert:'+x.id}));
+ }
+ state.bookSequence=out;
+}
+async function loadBookPages(){
+ const args=TEACHER?{p_document_id:state.doc?.id||null,p_student_token:null}:{p_document_id:null,p_student_token:bookToken()};
+ const {data,error}=await supabase.rpc('snt_pdf_book_list',args);if(error)throw error;
+ state.bookPages=Array.isArray(data?.pages)?data.pages:[];state.permanentNote=data?.permanent||{};
+ buildBookSequence();
+}
+function bookItem(){return state.bookSequence[state.bookIndex]||state.bookSequence[0]||null;}
+function syncBookCounter(){
+ const item=bookItem();if(!item)return;
+ if(els.pageInput){els.pageInput.value=String(state.bookIndex+1);els.pageInput.min='1';els.pageInput.max=String(state.bookSequence.length);}
+ if(els.pageCount)els.pageCount.textContent='/ '+state.bookSequence.length;
+ if(els.prevPage)els.prevPage.disabled=state.bookIndex<=0||studentFollowActive();
+ if(els.nextPage)els.nextPage.disabled=state.bookIndex>=state.bookSequence.length-1||studentFollowActive();
+}
+async function showBookIndex(index){
+ if(!state.bookSequence.length)return;
+ state.bookIndex=Math.max(0,Math.min(state.bookSequence.length-1,Number(index)||0));
+ const item=bookItem();syncBookCounter();
+ if(item.kind==='pdf'){
+  bookEls.page?.classList.add('hidden');els.pdfScroller?.classList.remove('hidden');
+  await renderPage(item.pdfPage,true);return;
+ }
+ els.pdfScroller?.classList.add('hidden');bookEls.page?.classList.remove('hidden');
+ bookEls.title.textContent=item.title|| (item.kind==='note'?'Note Page':'Image / Drawing Page');
+ bookEls.editor?.classList.toggle('hidden',item.kind!=='note');
+ bookEls.imageHost?.classList.toggle('hidden',item.kind!=='image');
+ if(item.kind==='note'){
+  if(TEACHER){bookEls.editor.contentEditable='true';setBookHtml(bookEls.editor,item.text_content||'');}
+  else{bookEls.editor.contentEditable='false';renderStoredBoardContent(bookEls.editor,item.text_content||'','No notes on this page yet.');}
+ }
+ if(item.kind==='image'){
+  const section=$('imageSection');if(section&&bookEls.imageHost){bookEls.imageHost.replaceChildren(section);section.classList.remove('hidden');}
+  const sel=$('imageBoardSelect');if(sel&&item.source_image_board_no){sel.value=String(item.source_image_board_no);sel.dispatchEvent(new Event('change',{bubbles:true}));}
+ }
+}
+function setBookHtml(el,raw){if(!el)return;const rich=storedBoardHtml(raw);if(rich!==null)el.innerHTML=rich;else el.textContent=String(raw||'');}
+function bookStorage(){if(!bookEls.editor)return '';const html=sanitizeRichHtml(bookEls.editor.innerHTML);const tmp=document.createElement('div');tmp.innerHTML=html;return (tmp.innerText||tmp.textContent||'').trim()?RICH_MARKER+html:'';}
+async function saveCurrentBookNote(){
+ if(!TEACHER)return;const item=bookItem();if(item?.kind!=='note')return;
+ const title=(bookEls.title?.textContent||item.title||'Note Page').trim().slice(0,100)||'Note Page';
+ const text=bookStorage();const {error}=await supabase.rpc('snt_pdf_book_save_note',{p_document_id:state.doc.id,p_page_id:item.id,p_title:title,p_text_content:text});if(error)throw error;
+ item.title=title;item.text_content=text;setStatus('Note page saved');
+}
+function scheduleBookSave(){if(!TEACHER)return;clearTimeout(state.bookSaveTimer);state.bookSaveTimer=setTimeout(()=>saveCurrentBookNote().catch(e=>setStatus(e.message)),500);}
+async function insertBookPage(){
+ if(!TEACHER||!state.doc)return;
+ const kind=confirm('Insert Page\n\nOK = Note Page\nCancel = Image / Drawing Page')?'note':'image';
+ const title=prompt(kind==='note'?'Name this Note Page:':'Name this Image / Drawing Page:',kind==='note'?'Class Notes':'Image / Drawing Page');if(title===null)return;
+ const anchor=bookItem()?.kind==='pdf'?bookItem().pdfPage:Math.max(1,Number(bookItem()?.anchor_pdf_page||state.pageNo||1));
+ const {data,error}=await supabase.rpc('snt_pdf_book_create_page',{p_document_id:state.doc.id,p_kind:kind,p_title:title.trim(),p_anchor_pdf_page:anchor});if(error)throw error;
+ await loadBookPages();const idx=state.bookSequence.findIndex(x=>x.id===data.id);await showBookIndex(idx>=0?idx:state.bookIndex+1);
+}
+function openPermanent(){
+ const p=state.permanentNote||{};if(bookEls.permTitle)bookEls.permTitle.value=p.title||'Permanent Note';
+ if(bookEls.permEditor){if(TEACHER){bookEls.permEditor.contentEditable='true';setBookHtml(bookEls.permEditor,p.text_content||'');}else{bookEls.permEditor.contentEditable='false';renderStoredBoardContent(bookEls.permEditor,p.text_content||'','No permanent note yet.');}}
+ bookEls.modal?.classList.remove('hidden');
+}
+async function closePermanent(save=true){
+ if(save&&TEACHER&&state.doc&&bookEls.permEditor){
+  const html=sanitizeRichHtml(bookEls.permEditor.innerHTML),tmp=document.createElement('div');tmp.innerHTML=html;
+  const text=(tmp.innerText||tmp.textContent||'').trim()?RICH_MARKER+html:'';
+  const title=(bookEls.permTitle?.value||'Permanent Note').trim()||'Permanent Note';
+  const {error}=await supabase.rpc('snt_pdf_book_save_permanent',{p_document_id:state.doc.id,p_title:title,p_text_content:text});if(error)throw error;
+  state.permanentNote={...(state.permanentNote||{}),title,text_content:text};
+ }
+ bookEls.modal?.classList.add('hidden');
+}
+function bindBookUi(){
+ bookEls.insert?.addEventListener('click',()=>insertBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
+ bookEls.permanent?.addEventListener('click',openPermanent);
+ $('permanentNoteClose')?.addEventListener('click',()=>closePermanent(true).catch(e=>alert(e.message)));
+ bookEls.editor?.addEventListener('input',scheduleBookSave);
+ bookEls.title?.addEventListener('input',scheduleBookSave);
+ /* Replace page navigation with continuous book navigation after the original handlers run. */
+ for(const el of [els.prevPage,els.nextPage,els.pageInput]){if(el)el.replaceWith(el.cloneNode(true));}
+ els.prevPage=$('prevPage');els.nextPage=$('nextPage');els.pageInput=$('pageInput');
+ els.prevPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex-1);});
+ els.nextPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex+1);});
+ els.pageInput?.addEventListener('change',()=>{if(!studentFollowActive())showBookIndex(Number(els.pageInput.value)-1);});
+}
+async function startContinuousBook(){
+ for(let i=0;i<80&&(!state.pdf||!state.doc);i++)await new Promise(r=>setTimeout(r,100));
+ if(!state.pdf||!state.doc)return;
+ try{await loadBookPages();bindBookUi();const idx=state.bookSequence.findIndex(x=>x.kind==='pdf'&&x.pdfPage===state.pageNo);await showBookIndex(idx>=0?idx:0);document.body.classList.add('continuous-book-ready');}
+ catch(e){console.error('Continuous book:',e);setStatus('Book pages: '+e.message);}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startContinuousBook,100),{once:true});else setTimeout(startContinuousBook,100);
