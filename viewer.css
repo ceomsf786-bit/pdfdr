@@ -487,3 +487,23 @@ body[data-mode=student] .note-block-splitter>span{flex:0 1 auto;min-width:0;over
 .permanent-note-head{display:flex;gap:8px;padding:10px;border-bottom:1px solid #ddd}.permanent-note-head input{flex:1;font-size:18px;font-weight:800;border:0;outline:none}
 .permanent-note-editor{flex:1;overflow:auto;padding:clamp(18px,4vw,40px);font-size:17px;line-height:1.6;outline:none}
 @media(max-width:650px){.book-page{padding:8px}.book-page-title{border-radius:8px;font-size:19px;padding:10px 12px}.book-note-editor{min-height:calc(100vh - 155px);border-radius:8px;padding:16px;font-size:16px}.permanent-note-modal{padding:0}.permanent-note-sheet{height:100%;border-radius:0}.top-actions{gap:4px}.top-actions .btn{min-height:38px}}
+
+/* v3.32 final continuous-book workspace: no legacy note/image panels or splitters */
+body.continuous-book-ready .teacher-workspace,
+body.continuous-book-ready .student-workspace{display:block!important;position:relative!important;height:100%!important;overflow:hidden!important}
+body.continuous-book-ready .teacher-workspace>.pdf-area,
+body.continuous-book-ready .student-workspace>.pdf-area{position:absolute!important;inset:0!important;width:100%!important;height:100%!important}
+body.continuous-book-ready .teacher-workspace #boardPanel,
+body.continuous-book-ready .student-workspace #boardPanel,
+body.continuous-book-ready .splitter{display:none!important}
+body.continuous-book-ready .tool-rail-inline{position:absolute;left:0;top:42px;bottom:0;width:48px;z-index:25;overflow-y:auto;overflow-x:hidden;background:#fff}
+body.continuous-book-ready .teacher-workspace .pdf-scroller{padding-left:60px}
+body.continuous-book-ready .book-page{left:0;top:0}
+body.continuous-book-ready.book-image-active .tool-rail-inline{display:flex!important}
+body.continuous-book-ready:not(.book-image-active) .tool-rail-inline{display:flex!important}
+body.continuous-book-ready .book-image-host .image-section{position:absolute!important;inset:62px 8px 8px 58px!important;width:auto!important;height:auto!important;border:0!important}
+@media(max-width:650px){
+ body.continuous-book-ready .tool-rail-inline{width:44px;top:40px}
+ body.continuous-book-ready .teacher-workspace .pdf-scroller{padding-left:50px}
+ body.continuous-book-ready .book-image-host .image-section{left:48px}
+}
