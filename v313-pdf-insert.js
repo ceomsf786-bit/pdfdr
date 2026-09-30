@@ -1,4 +1,4 @@
-// SNT PDF Annotator v3.26 — insert a Google Drive PDF anywhere into the current document.
+// SNT PDF Annotator v3.29 — Drive-backed insert: store source order only, never upload a merged PDF.
 import { CONFIG } from './config.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
@@ -28,59 +28,37 @@ function extractDriveId(value=''){
   for(const p of patterns){const m=s.match(p);if(m?.[1])return m[1];}
   return '';
 }
-
-async function fetchCurrentPdf(){
-  const r=await fetch(apiUrl('pdf',{fresh:Date.now()}),{headers:await headers(),cache:'no-store'});
-  if(!r.ok)throw new Error('Could not load the current PDF.');
-  return new Uint8Array(await r.arrayBuffer());
-}
-
-async function fetchDrivePdf(fileId){
-  setStatus('Loading PDF from Google Drive…');
-  const r=await fetch(apiUrl('drive-pdf',{fileId}),{headers:await headers()});
-  if(!r.ok){
-    const d=await r.json().catch(()=>({}));
-    throw new Error(d.error||`Could not load Google Drive PDF (${r.status}).`);
-  }
+async function incomingPageCount(fileId){
+  setStatus('Checking Google Drive PDF…');
+  const r=await fetch(apiUrl('drive-pdf',{fileId}),{headers:await headers(),cache:'no-store'});
+  if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||`Could not load Google Drive PDF (${r.status}).`);}
   const type=(r.headers.get('content-type')||'').toLowerCase();
-  if(!type.includes('pdf'))throw new Error('Google Drive did not return a PDF. Make sure sharing is Anyone with the link → Viewer.');
-  return new Uint8Array(await r.arrayBuffer());
-}
-
-async function mergeAt(fileId,insertBefore){
+  if(!type.includes('pdf'))throw new Error('Google Drive did not return a PDF. Set sharing to Anyone with the link → Viewer.');
   if(!window.PDFLib?.PDFDocument)throw new Error('PDF engine is not ready.');
-  setStatus('Preparing PDF insertion…');
-  const [currentBytes,incomingBytes]=await Promise.all([fetchCurrentPdf(),fetchDrivePdf(fileId)]);
-  const {PDFDocument}=window.PDFLib;
-  const current=await PDFDocument.load(currentBytes,{ignoreEncryption:false});
-  const incoming=await PDFDocument.load(incomingBytes,{ignoreEncryption:false});
-  const incomingCount=incoming.getPageCount();
-  if(!incomingCount)throw new Error('The Google Drive PDF has no pages.');
-  const currentCount=current.getPageCount();
-  const before=Math.max(1,Math.min(currentCount+1,Number(insertBefore)||currentCount+1));
-
-  const merged=await PDFDocument.create();
-  const leftIndexes=Array.from({length:before-1},(_,i)=>i);
-  const rightIndexes=Array.from({length:currentCount-(before-1)},(_,i)=>before-1+i);
-  if(leftIndexes.length){const pages=await merged.copyPages(current,leftIndexes);pages.forEach(p=>merged.addPage(p));}
-  const inserted=await merged.copyPages(incoming,incoming.getPageIndices());inserted.forEach(p=>merged.addPage(p));
-  if(rightIndexes.length){const pages=await merged.copyPages(current,rightIndexes);pages.forEach(p=>merged.addPage(p));}
-  const out=await merged.save();
-  if(out.byteLength>80*1024*1024)throw new Error('The merged PDF is too large (maximum 80 MB).');
-
-  setStatus(`Saving ${incomingCount} inserted page${incomingCount===1?'':'s'}…`);
-  const r=await fetch(apiUrl('save-composed-pdf',{insertBefore:before,insertCount:incomingCount,newPageCount:merged.getPageCount()}),{
-    method:'POST',headers:await headers({'Content-Type':'application/pdf','x-file-name':'inserted-from-drive.pdf'}),body:out
-  });
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(d.error||d.detail||`PDF insert failed (${r.status}).`);
-  return {before,incomingCount,total:merged.getPageCount()};
+  const pdf=await window.PDFLib.PDFDocument.load(await r.arrayBuffer(),{ignoreEncryption:false});
+  const count=pdf.getPageCount();
+  if(!count)throw new Error('The Google Drive PDF has no pages.');
+  return count;
 }
-
+async function insertDriveSource(fileId,insertBefore,total){
+  const count=await incomingPageCount(fileId);
+  setStatus(`Adding ${count} Drive page${count===1?'':'s'} to page order…`);
+  const r=await fetch(apiUrl('insert-drive-source',{
+    fileId,
+    insertBefore,
+    insertCount:count,
+    basePageCount:total
+  }),{method:'POST',headers:await headers({'Content-Type':'application/json'}),body:'{}'});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){
+    if((d.error||'').includes('LEGACY_COMPOSED_PDF'))throw new Error('This older PDF already contains a Supabase-merged insert. It stays readable, but new Drive-only inserts require a fresh Drive-backed PDF document.');
+    throw new Error(d.error||d.detail||`Drive insert failed (${r.status}).`);
+  }
+  return d;
+}
 async function chooseAndInsert(){
   if(!docId())throw new Error('Open a PDF from the library first.');
-
-  const link=prompt('Paste the Google Drive link for the PDF you want to insert.\n\nSharing must be: Anyone with the link → Viewer.');
+  const link=prompt('Paste the Google Drive link for the PDF you want to insert.\n\nThe PDF stays on Google Drive. Sharing must be: Anyone with the link → Viewer.');
   if(link===null)return;
   const fileId=extractDriveId(link);
   if(!fileId)throw new Error('That does not look like a valid Google Drive PDF link.');
@@ -91,18 +69,16 @@ async function chooseAndInsert(){
   const before=Number(raw);
   if(!Number.isInteger(before)||before<1||before>total+1)throw new Error(`Enter a page number from 1 to ${total+1}.`);
 
-  if(!confirm(`Insert the Google Drive PDF before page ${before}${before===total+1?' (at the end)':''}?\n\nExisting annotations will stay with their original pages.`))return;
+  if(!confirm(`Insert the Google Drive PDF before page ${before}${before===total+1?' (at the end)':''}?\n\nNo combined PDF will be uploaded. SNT stores only the Drive source order. Existing annotations stay with their original pages.`))return;
 
-  const done=await mergeAt(fileId,before);
-  setStatus(`Inserted ${done.incomingCount} page${done.incomingCount===1?'':'s'} — reloading…`);
-  setTimeout(()=>location.reload(),450);
+  const done=await insertDriveSource(fileId,before,total);
+  setStatus(`Added ${done.inserted_pages} Drive page${done.inserted_pages===1?'':'s'} — reloading…`);
+  setTimeout(()=>location.reload(),350);
 }
-
 function init(){
   const btn=$('insertPdfBtn');if(!btn)return;
   btn.textContent='+ Insert Drive PDF';
-  btn.title='Insert all pages from a Google Drive PDF anywhere in this document';
+  btn.title='Insert a Google Drive PDF by reference only — no merged PDF is uploaded';
   btn.addEventListener('click',()=>chooseAndInsert().catch(e=>{console.error(e);setStatus(e.message);alert(e.message);}));
 }
-
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
