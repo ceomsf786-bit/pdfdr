@@ -473,3 +473,17 @@ body[data-mode=student] .note-block-splitter>span{flex:0 1 auto;min-width:0;over
   body[data-mode=student] .student-resize-bar>span,
   body[data-mode=student] .note-block-splitter>span{font-size:.49rem!important;padding:1px 4px!important}
 }
+
+/* v3.31 mobile-first continuous book */
+.continuous-book-ready #boardPanel,.continuous-book-ready #toolSplit,.continuous-book-ready #noteSplit,.continuous-book-ready #noteInnerSplit,.continuous-book-ready #studentSplit,.continuous-book-ready #studentPermanentSplit,.continuous-book-ready #studentPageSplit{display:none!important}
+.continuous-book-ready .workspace{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+.continuous-book-ready .pdf-area{min-height:0!important;height:100%!important}
+.book-page{position:absolute;inset:0;overflow:auto;background:#f4f6f8;padding:clamp(10px,3vw,28px);z-index:4}
+.book-page-title{max-width:900px;margin:0 auto 12px;background:white;padding:14px 18px;border-radius:12px;font-size:clamp(20px,4vw,30px);font-weight:800;outline:none}
+.book-note-editor{max-width:900px;min-height:70vh;margin:auto;background:white;padding:clamp(18px,4vw,42px);border-radius:12px;box-shadow:0 3px 18px #0002;font-size:17px;line-height:1.65;outline:none}
+.book-image-host{height:calc(100% - 70px);min-height:65vh}.book-image-host #imageSection{height:100%!important;display:block!important}
+.permanent-note-modal{position:fixed;inset:0;z-index:10050;background:#0009;padding:clamp(8px,3vw,28px);display:flex;align-items:center;justify-content:center}
+.permanent-note-modal.hidden{display:none!important}.permanent-note-sheet{width:min(950px,100%);height:min(90vh,900px);background:white;border-radius:16px;display:flex;flex-direction:column;overflow:hidden}
+.permanent-note-head{display:flex;gap:8px;padding:10px;border-bottom:1px solid #ddd}.permanent-note-head input{flex:1;font-size:18px;font-weight:800;border:0;outline:none}
+.permanent-note-editor{flex:1;overflow:auto;padding:clamp(18px,4vw,40px);font-size:17px;line-height:1.6;outline:none}
+@media(max-width:650px){.book-page{padding:8px}.book-page-title{border-radius:8px;font-size:19px;padding:10px 12px}.book-note-editor{min-height:calc(100vh - 155px);border-radius:8px;padding:16px;font-size:16px}.permanent-note-modal{padding:0}.permanent-note-sheet{height:100%;border-radius:0}.top-actions{gap:4px}.top-actions .btn{min-height:38px}}
