@@ -1426,6 +1426,7 @@ async function showBookIndex(index){
  if(!state.bookSequence.length)return;
  state.bookIndex=Math.max(0,Math.min(state.bookSequence.length-1,Number(index)||0));
  const item=bookItem();syncBookCounter();
+ document.body.classList.remove('book-image-active');
  if(item.kind==='pdf'){
   bookEls.page?.classList.add('hidden');els.pdfScroller?.classList.remove('hidden');
   await renderPage(item.pdfPage,true);return;
@@ -1441,6 +1442,7 @@ async function showBookIndex(index){
  if(item.kind==='image'){
   const section=$('imageSection');if(section&&bookEls.imageHost){bookEls.imageHost.replaceChildren(section);section.classList.remove('hidden');}
   const sel=$('imageBoardSelect');if(sel&&item.source_image_board_no){sel.value=String(item.source_image_board_no);sel.dispatchEvent(new Event('change',{bubbles:true}));}
+  if(TEACHER) document.body.classList.add('book-image-active');
  }
 }
 function setBookHtml(el,raw){if(!el)return;const rich=storedBoardHtml(raw);if(rich!==null)el.innerHTML=rich;else el.textContent=String(raw||'');}
@@ -1454,7 +1456,8 @@ async function saveCurrentBookNote(){
 function scheduleBookSave(){if(!TEACHER)return;clearTimeout(state.bookSaveTimer);state.bookSaveTimer=setTimeout(()=>saveCurrentBookNote().catch(e=>setStatus(e.message)),500);}
 async function insertBookPage(){
  if(!TEACHER||!state.doc)return;
- const kind=confirm('Insert Page\n\nOK = Note Page\nCancel = Image / Drawing Page')?'note':'image';
+ const choice=prompt('Insert page type:\n1 = Note Page\n2 = Image / Drawing Page','1');if(choice===null)return;
+ const kind=String(choice).trim()==='2'?'image':'note';
  const title=prompt(kind==='note'?'Name this Note Page:':'Name this Image / Drawing Page:',kind==='note'?'Class Notes':'Image / Drawing Page');if(title===null)return;
  const anchor=bookItem()?.kind==='pdf'?bookItem().pdfPage:Math.max(1,Number(bookItem()?.anchor_pdf_page||state.pageNo||1));
  const {data,error}=await supabase.rpc('snt_pdf_book_create_page',{p_document_id:state.doc.id,p_kind:kind,p_title:title.trim(),p_anchor_pdf_page:anchor});if(error)throw error;
