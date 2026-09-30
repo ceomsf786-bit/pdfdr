@@ -79,3 +79,17 @@ async function init(){const section=targetSection();if(!section)return;state.stu
 try{if(!TEACHER){const d=await api('image-boards');state.docId=d.document_id;state.boards=d.boards||[];state.boardNo=Number(d.live_image_board_no||1);renderBoardSelect();await loadImages();}else{for(let i=0;i<20&&!state.docId;i++){await new Promise(r=>setTimeout(r,250));state.docId=teacherDocId();}await loadBoards();}await setupChannel();status('Image boards ready');}catch(e){status('Image boards: '+e.message);}}
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,0),{once:true});else setTimeout(init,0);
+
+/* v3.34 continuous-book bridge: the book page owns which legacy image-board record is active. */
+window.SNTImageBoards={
+  async open(boardNo){
+    const n=Number(boardNo)||1;
+    if(!state.docId)state.docId=TEACHER?teacherDocId():state.docId;
+    if(!state.boards.length)await loadBoards(n);else await switchBoard(n,false);
+    setMode(TEACHER?'draw':'view');
+    const section=targetSection();if(section)section.classList.remove('hidden');
+    requestAnimationFrame(()=>{resizeCanvas();renderImages().catch(()=>{});});
+  },
+  async reload(){await loadBoards(state.boardNo);},
+  boardNo(){return state.boardNo;}
+};
