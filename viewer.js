@@ -20,7 +20,7 @@ const els = {
   imageSection:$('imageSection'), imageStage:$('imageStage'), galleryZoomWrap:$('galleryZoomWrap'), galleryBoard:$('galleryBoard'), galleryImagesLayer:$('galleryImagesLayer'), galleryOverlayCanvas:$('galleryOverlayCanvas'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), galleryArrangeBtn:$('galleryArrangeBtn'), galleryTileBtn:$('galleryTileBtn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
   statusText:$('statusText'), liveText:$('liveText'),
   toolRail:$('toolRail'), toolButtons:[...document.querySelectorAll('[data-tool]')], widthInput:$('widthInput'), colorInput:$('colorInput'), undoBtn:$('undoBtn'), redoBtn:$('redoBtn'), deleteSelected:$('deleteSelected'),
-  toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'),
+  toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'), studentToggleNotepad:$('studentToggleNotepad'), studentToggleGlobal:$('studentToggleGlobal'), studentToggleClass:$('studentToggleClass'), studentToggleImages:$('studentToggleImages'),
   loginPanel:$('loginPanel'), loginForm:$('loginForm'), emailInput:$('emailInput'), passwordInput:$('passwordInput'), signOutBtn:$('signOutBtn'),
   libraryBtn:$('libraryBtn'), libraryDialog:$('libraryDialog'), libraryList:$('libraryList'), createDocBtn:$('createDocBtn'), newTitle:$('newTitle'), newDriveUrl:$('newDriveUrl'), copyStudentLink:$('copyStudentLink'), hookStudentsBtn:$('hookStudentsBtn'), exportPdf:$('exportPdf'),
   fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn'), togglePdf:$('togglePdf'), toggleImages:$('toggleImages'), boardPermanent:$('boardPermanent'), boardHomework:$('boardHomework'),
@@ -32,7 +32,7 @@ const state = {
   pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), galleryState:null, selectedGalleryImageId:null, galleryArrange:false, revision:0,
   tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], galleryUndo:[], galleryRedo:[], galleryPointer:null, rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
-  boardOpen:true, pdfOpen:true, imagesOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
+  boardOpen:true, pdfOpen:true, globalNotesOpen:true, classNotesOpen:true, imagesOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
   remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
   pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false, teacherReleasing:false
@@ -650,7 +650,7 @@ function persistStudentState(){
     const cs=getComputedStyle(document.documentElement);
     localStorage.setItem(`sntpdf:${state.doc.id}`,JSON.stringify({
       pageNo:state.pageNo,boardNo:state.boardNo,scale:state.scale,fit:state.fit,
-      boardOpen:state.boardOpen,pdfOpen:state.pdfOpen,imagesOpen:state.imagesOpen,imageIndex:state.imageIndex,imageZoom:state.imageZoom,
+      boardOpen:state.boardOpen,pdfOpen:state.pdfOpen,globalNotesOpen:state.globalNotesOpen,classNotesOpen:state.classNotesOpen,imagesOpen:state.imagesOpen,imageIndex:state.imageIndex,imageZoom:state.imageZoom,
       studentNoteH:cs.getPropertyValue('--student-note-h').trim(),
       permanentH:cs.getPropertyValue('--student-permanent-h').trim(),
       pageNotesH:cs.getPropertyValue('--student-page-h').trim()
@@ -661,7 +661,7 @@ function restoreStudentState(){
   if(TEACHER || !state.doc) return;
   try{
     const v=JSON.parse(localStorage.getItem(`sntpdf:${state.doc.id}`)||'null'); if(!v) return;
-    state.pageNo=Math.max(1,Number(v.pageNo||1)); state.boardNo=Math.max(1,Number(v.boardNo||1)); state.scale=Math.max(.4,Math.min(3.5,Number(v.scale||1.15))); state.fit=v.fit!==false; state.boardOpen=v.boardOpen!==false; state.pdfOpen=v.pdfOpen!==false; state.imagesOpen=v.imagesOpen!==false; state.imageIndex=Math.max(0,Number(v.imageIndex||0)); state.imageZoom=Math.max(.2,Math.min(1.5,Number(v.imageZoom||.5)));
+    state.pageNo=Math.max(1,Number(v.pageNo||1)); state.boardNo=Math.max(1,Number(v.boardNo||1)); state.scale=Math.max(.4,Math.min(3.5,Number(v.scale||1.15))); state.fit=v.fit!==false; state.boardOpen=v.boardOpen!==false; state.pdfOpen=v.pdfOpen!==false; state.globalNotesOpen=v.globalNotesOpen!==false; state.classNotesOpen=v.classNotesOpen!==false; state.imagesOpen=v.imagesOpen!==false; state.imageIndex=Math.max(0,Number(v.imageIndex||0)); state.imageZoom=Math.max(.2,Math.min(1.5,Number(v.imageZoom||.5)));
     if(v.studentNoteH)document.documentElement.style.setProperty('--student-note-h',v.studentNoteH);
     if(v.permanentH)document.documentElement.style.setProperty('--student-permanent-h',v.permanentH);
     if(v.pageNotesH)document.documentElement.style.setProperty('--student-page-h',v.pageNotesH);
@@ -1091,6 +1091,7 @@ function setBoardOpen(open){
   }else{
     els.workspace.classList.toggle('notes-hidden',!state.boardOpen);
     if(els.toggleBoard){els.toggleBoard.textContent=state.boardOpen?'Hide notes':'Show notes';els.toggleBoard.setAttribute('aria-expanded',String(state.boardOpen));}
+    if(els.studentToggleNotepad){els.studentToggleNotepad.textContent=state.boardOpen?'Hide notepad':'Show notepad';els.studentToggleNotepad.setAttribute('aria-expanded',String(state.boardOpen));}
   }
   persistStudentState();
 }
@@ -1107,8 +1108,28 @@ function setImagesOpen(open){
   state.imagesOpen=!!open;
   els.workspace?.classList.toggle('images-hidden',!state.imagesOpen);
   if(els.toggleImages){els.toggleImages.textContent=state.imagesOpen?'Hide images':'Show images';els.toggleImages.setAttribute('aria-expanded',String(state.imagesOpen));}
+  if(els.studentToggleImages){els.studentToggleImages.textContent=state.imagesOpen?'Hide imageboards':'Show imageboards';els.studentToggleImages.setAttribute('aria-expanded',String(state.imagesOpen));}
   if(state.imagesOpen)requestAnimationFrame(()=>renderGallery());
   persistStudentState();
+}
+function setGlobalNotesOpen(open){
+  if(TEACHER)return;
+  state.globalNotesOpen=!!open;
+  els.workspace?.classList.toggle('global-notes-hidden',!state.globalNotesOpen);
+  if(els.studentToggleGlobal){els.studentToggleGlobal.textContent=state.globalNotesOpen?'Hide global':'Show global';els.studentToggleGlobal.setAttribute('aria-expanded',String(state.globalNotesOpen));}
+  persistStudentState();
+}
+function setClassNotesOpen(open){
+  if(TEACHER)return;
+  state.classNotesOpen=!!open;
+  els.workspace?.classList.toggle('class-notes-hidden',!state.classNotesOpen);
+  if(els.studentToggleClass){els.studentToggleClass.textContent=state.classNotesOpen?'Hide class':'Show class';els.studentToggleClass.setAttribute('aria-expanded',String(state.classNotesOpen));}
+  persistStudentState();
+}
+function bindSplitHideButton(btn,handler){
+  if(!btn)return;
+  btn.addEventListener('pointerdown',e=>{e.stopPropagation();});
+  btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();handler();});
 }
 function setPdfFocus(on){
   if(!TEACHER||!els.workspace)return;
@@ -1221,6 +1242,10 @@ function bindCommon(){
   els.toggleBoard?.addEventListener('click',()=>setBoardOpen(!state.boardOpen));
   els.togglePdf?.addEventListener('click',()=>setPdfOpen(!state.pdfOpen));
   els.toggleImages?.addEventListener('click',()=>setImagesOpen(!state.imagesOpen));
+  bindSplitHideButton(els.studentToggleNotepad,()=>setBoardOpen(!state.boardOpen));
+  bindSplitHideButton(els.studentToggleGlobal,()=>setGlobalNotesOpen(!state.globalNotesOpen));
+  bindSplitHideButton(els.studentToggleClass,()=>setClassNotesOpen(!state.classNotesOpen));
+  bindSplitHideButton(els.studentToggleImages,()=>setImagesOpen(!state.imagesOpen));
   els.boardPrev?.addEventListener('click',()=>moveBoard(-1));els.boardNext?.addEventListener('click',()=>moveBoard(1));
   // Student note/image browsing is always local, whether hooked or unhooked.
   els.imagePrev?.addEventListener('click',()=>moveImage(-1));els.imageNext?.addEventListener('click',()=>moveImage(1));
@@ -1357,7 +1382,7 @@ async function bootStudent(){
   try{
     const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.studentHooked=init.document.student_hooked!==false;state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=state.liveBoardNo;els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
     if(studentFollowActive()){state.pageNo=Math.max(1,Number(init.document.live_page||1));state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.boardNo=state.liveBoardNo;}
-    setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setImagesOpen(state.imagesOpen);await loadPdf();await loadImages(true);await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setImagesOpen(state.imagesOpen);refreshStudentHookUi();
+    setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setGlobalNotesOpen(state.globalNotesOpen);setClassNotesOpen(state.classNotesOpen);setImagesOpen(state.imagesOpen);await loadPdf();await loadImages(true);await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setGlobalNotesOpen(state.globalNotesOpen);setClassNotesOpen(state.classNotesOpen);setImagesOpen(state.imagesOpen);refreshStudentHookUi();
     state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||900));await pollStudentSync();
   }catch(e){showError(e.message);}
 }
