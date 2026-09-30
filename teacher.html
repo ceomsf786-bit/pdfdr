@@ -27,6 +27,8 @@
         <input id="backupFileInput" type="file" accept=".sntbackup,.zip,application/zip" hidden>
         <button id="fullscreenBtn" class="btn compact">Full screen</button>
         <button id="focusPdfBtn" class="btn compact">PDF focus</button>
+        <button id="insertBookPageBtn" class="btn compact primary">+ Insert Page</button>
+        <button id="permanentNoteBtn" class="btn compact">📌 Permanent Note</button>
         <button id="togglePdf" class="btn compact" aria-expanded="true">Hide PDF</button>
         <button id="toggleBoard" class="btn compact" aria-expanded="true">Hide notepad</button>
         <button id="toggleImages" class="btn compact" aria-expanded="true">Hide images</button>
@@ -158,5 +160,17 @@
   <script type="module" src="v313-pdf-insert.js"></script>
   <script type="module" src="v315-board-tools.js"></script>
   <script type="module" src="v320-links.js"></script>
+
+<div id="bookPage" class="book-page hidden">
+  <div id="bookPageTitle" class="book-page-title" contenteditable="true">Inserted Page</div>
+  <div id="bookNoteEditor" class="book-note-editor hidden"></div>
+  <div id="bookImageHost" class="book-image-host hidden"></div>
+</div>
+<div id="permanentNoteModal" class="permanent-note-modal hidden" role="dialog" aria-modal="true">
+ <div class="permanent-note-sheet">
+  <div class="permanent-note-head"><input id="permanentNoteTitle" value="Permanent Note" ><button id="permanentNoteClose" class="btn compact">Close</button></div>
+  <div id="permanentNoteEditor" class="permanent-note-editor"></div>
+ </div>
+</div>
 </body>
 </html>
