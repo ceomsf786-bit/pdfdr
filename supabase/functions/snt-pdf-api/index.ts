@@ -40,9 +40,64 @@ if(action==="drive-pdf"&&req.method==="GET"){
   return new Response(bytes,{status:200,headers:h});
 }
 
+
+if(action==="pdf-sources"&&req.method==="GET"){
+  const {data,error}=await admin.from("snt_pdf_sources")
+    .select("id,sort_no,page_start,page_count")
+    .eq("document_id",doc.id)
+    .order("sort_no");
+  if(error)throw error;
+  const sources=data||[];
+  const pageCount=sources.reduce((n:number,s:any)=>n+Math.max(0,Number(s.page_count||0)),0);
+  return json({sources,page_count:pageCount,legacy_composed:!!doc.composed_pdf_path});
+}
+
+if(action==="pdf-source"&&req.method==="GET"){
+  const sourceId=String(url.searchParams.get("source")||"").trim();
+  if(!sourceId)throw new Error("SOURCE_REQUIRED");
+  const {data:source,error}=await admin.from("snt_pdf_sources")
+    .select("id,drive_file_id")
+    .eq("id",sourceId)
+    .eq("document_id",doc.id)
+    .maybeSingle();
+  if(error||!source)throw new Error("SOURCE_NOT_FOUND");
+  const headers:Record<string,string>={"User-Agent":"Mozilla/5.0 SNT-PDF-Board"};
+  const range=req.headers.get("range");if(range)headers.Range=range;
+  let upstream=await fetch(driveUrl(source.drive_file_id),{headers,redirect:"follow"});
+  if(!upstream.ok)upstream=await fetch(`https://drive.google.com/uc?export=download&confirm=t&id=${encodeURIComponent(source.drive_file_id)}`,{headers,redirect:"follow"});
+  const contentType=(upstream.headers.get("content-type")||"").toLowerCase();
+  if(!upstream.ok||contentType.includes("text/html"))return json({error:"Google Drive did not return this PDF. Check that its sharing is Anyone with the link → Viewer."},502);
+  const h=new Headers(cors);h.set("Content-Type",contentType||"application/pdf");h.set("Cache-Control","private, max-age=300");
+  for(const n of ["content-length","content-range","accept-ranges","etag","last-modified"]){const v=upstream.headers.get(n);if(v)h.set(n,v);}
+  return new Response(upstream.body,{status:upstream.status,headers:h});
+}
+
+if(action==="insert-drive-source"&&req.method==="POST"){
+  if(role!=="teacher")throw new Error("AUTH_REQUIRED");
+  if(doc.composed_pdf_path)throw new Error("LEGACY_COMPOSED_PDF");
+  const fileId=String(url.searchParams.get("fileId")||"").trim();
+  const insertBefore=Math.max(1,Number(url.searchParams.get("insertBefore")||1));
+  const insertCount=Math.max(1,Number(url.searchParams.get("insertCount")||0));
+  const basePageCount=Math.max(1,Number(url.searchParams.get("basePageCount")||0));
+  if(!/^[A-Za-z0-9_-]{20,}$/.test(fileId))throw new Error("BAD_DRIVE_LINK");
+  const {error}=await admin.rpc("snt_insert_drive_source",{
+    p_document_id:doc.id,
+    p_drive_file_id:fileId,
+    p_insert_before:insertBefore,
+    p_insert_count:insertCount,
+    p_base_page_count:basePageCount
+  });
+  if(error)throw error;
+  const q=await admin.from("snt_pdf_sources").select("id,sort_no,page_start,page_count").eq("document_id",doc.id).order("sort_no");
+  if(q.error)throw q.error;
+  const sources=q.data||[];
+  const pageCount=sources.reduce((n:number,s:any)=>n+Math.max(0,Number(s.page_count||0)),0);
+  return json({ok:true,insert_before:insertBefore,inserted_pages:insertCount,page_count:pageCount,sources});
+}
+
 if(action==="save-composed-pdf"&&req.method==="POST"){if(role!=="teacher")throw new Error("AUTH_REQUIRED");const insertBefore=Math.max(1,Number(url.searchParams.get("insertBefore")||1)),insertCount=Math.max(1,Number(url.searchParams.get("insertCount")||1)),newPageCount=Math.max(insertCount,Number(url.searchParams.get("newPageCount")||insertCount));const mime=req.headers.get("content-type")||"";if(!mime.includes("application/pdf"))throw new Error("BAD_PDF");const bytes=await req.arrayBuffer();if(!bytes.byteLength||bytes.byteLength>80*1024*1024)throw new Error("PDF_TOO_LARGE");const path=`${doc.id}/composed/${crypto.randomUUID()}.pdf`;const {error:upErr}=await admin.storage.from(ASSET_BUCKET).upload(path,new Uint8Array(bytes),{contentType:"application/pdf",upsert:false,cacheControl:"300"});if(upErr)throw upErr;const {error:rpcErr}=await admin.rpc("snt_shift_for_inserted_pdf",{p_document_id:doc.id,p_insert_before:insertBefore,p_insert_count:insertCount,p_new_path:path,p_new_page_count:newPageCount});if(rpcErr){await admin.storage.from(ASSET_BUCKET).remove([path]);throw rpcErr;}if(doc.composed_pdf_path&&doc.composed_pdf_path!==path)await admin.storage.from(ASSET_BUCKET).remove([doc.composed_pdf_path]).catch(()=>{});return json({ok:true,insert_before:insertBefore,inserted_pages:insertCount,page_count:newPageCount});}
 
-if(action==="init"&&req.method==="GET")return json({document:{id:doc.id,title:doc.title,revision:Number(doc.revision||0),student_hooked:doc.student_hooked!==false,live_page:Number(doc.live_page||1),live_board_no:Number(doc.live_board_no||1),live_image_id:doc.live_image_id||null,live_image_board_no:Number(doc.live_image_board_no||1),live_scroll_ratio:Number(doc.live_scroll_ratio||0),live_center_x:Number(doc.live_center_x??.5),live_center_y:Number(doc.live_center_y??.5),live_zoom:Number(doc.live_zoom||1),composed_page_count:doc.composed_page_count||null},role,teacher_online:online(doc.teacher_present_at)});
+if(action==="init"&&req.method==="GET")return json({document:{id:doc.id,title:doc.title,revision:Number(doc.revision||0),student_hooked:doc.student_hooked!==false,live_page:Number(doc.live_page||1),live_board_no:Number(doc.live_board_no||1),live_image_id:doc.live_image_id||null,live_image_board_no:Number(doc.live_image_board_no||1),live_scroll_ratio:Number(doc.live_scroll_ratio||0),live_center_x:Number(doc.live_center_x??.5),live_center_y:Number(doc.live_center_y??.5),live_zoom:Number(doc.live_zoom||1),composed_page_count:doc.composed_page_count||null,legacy_composed:!!doc.composed_pdf_path},role,teacher_online:online(doc.teacher_present_at)});
 if(action==="sync"&&req.method==="GET"){const {data,error}=await admin.from("snt_pdf_documents").select("revision,student_hooked,live_page,live_board_no,live_image_id,live_image_board_no,live_scroll_ratio,live_center_x,live_center_y,live_zoom,teacher_present_at,updated_at,composed_page_count").eq("id",doc.id).single();if(error)throw error;return json({...data,revision:Number(data.revision||0),student_hooked:data.student_hooked!==false,live_page:Number(data.live_page||1),live_board_no:Number(data.live_board_no||1),live_image_board_no:Number(data.live_image_board_no||1),live_scroll_ratio:Number(data.live_scroll_ratio||0),live_center_x:Number(data.live_center_x??.5),live_center_y:Number(data.live_center_y??.5),live_zoom:Number(data.live_zoom||1),teacher_online:online(data.teacher_present_at)});}
 if(action==="teacher-leave"&&req.method==="POST"){if(role!=="teacher")throw new Error("AUTH_REQUIRED");const {error}=await admin.from("snt_pdf_documents").update({student_hooked:false,teacher_present_at:null,updated_at:new Date().toISOString()}).eq("id",doc.id);if(error)throw error;return json({ok:true,student_hooked:false});}
 if(action==="page"&&req.method==="GET"){const pageNo=Math.max(1,Number(url.searchParams.get("page")||1));const {data,error}=await admin.from("snt_pdf_pages").select("page_no,objects,updated_at").eq("document_id",doc.id).eq("page_no",pageNo).maybeSingle();if(error)throw error;return json({page_no:pageNo,objects:Array.isArray(data?.objects)?data.objects:[],updated_at:data?.updated_at||null});}
