@@ -29,10 +29,6 @@
         <button id="focusPdfBtn" class="btn compact">PDF focus</button>
         <button id="insertBookPageBtn" class="btn compact primary">+ Insert Page</button>
         <button id="permanentNoteBtn" class="btn compact">📌 Permanent Note</button>
-        <button id="togglePdf" class="btn compact" aria-expanded="true">Hide PDF</button>
-        <button id="toggleBoard" class="btn compact" aria-expanded="true">Hide notepad</button>
-        <button id="toggleImages" class="btn compact" aria-expanded="true">Hide images</button>
-        <button id="resetLayoutBtn" class="btn compact">Reset layout</button>
         <button id="signOutBtn" class="btn compact">Sign out</button>
       </div>
     </header>
@@ -72,9 +68,27 @@
         <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
       </aside>
 
-      <div id="toolSplit" class="splitter vertical-splitter" title="Drag to resize toolbar"></div>
-
       <section class="pdf-area">
+        <aside id="toolRail" class="tool-rail tool-rail-inline" aria-label="Annotation tools">
+        <button class="tool active" data-tool="pen">✎<span>Pen</span></button>
+        <button class="tool" data-tool="highlighter">▰<span>Highlight</span></button>
+        <button class="tool" data-tool="eraser">⌫<span>Erase</span></button>
+        <button class="tool" data-tool="select">⌖<span>Select</span></button>
+        <button class="tool" data-tool="text">T<span>Text</span></button>
+        <button class="tool" data-tool="line">╱<span>Line</span></button>
+        <button class="tool" data-tool="arrow">➜<span>Arrow</span></button>
+        <button class="tool" data-tool="rect">□<span>Box</span></button>
+        <button class="tool" data-tool="ellipse">○<span>Circle</span></button>
+        <button class="tool" data-tool="hand">✋<span>Pan</span></button>
+        <div class="rail-divider"></div>
+        <label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label>
+        <label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label>
+        <label class="rail-label" title="Fill new boxes/circles and the selected shape"><span>Fill shape</span><input id="shapeFillToggle" type="checkbox"></label>
+        <label class="rail-label">Fill colour<input id="shapeFillColor" type="color" value="#fff59d"></label>
+        <button id="undoBtn" class="tool">↶<span>Undo</span></button>
+        <button id="redoBtn" class="tool">↷<span>Redo</span></button>
+        <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
+      </aside>
         <div class="pdf-controls">
           <button id="prevPage" class="btn compact">← Prev</button>
           <label class="page-box">Page <input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label>
@@ -91,45 +105,6 @@
           </div>
         </div>
       </section>
-
-      <div id="noteSplit" class="splitter vertical-splitter" title="Drag to resize notepad"></div>
-
-      <aside id="boardPanel" class="board-panel teacher-board open">
-        <div class="board-head">
-          <div class="board-title-edit">
-            <input id="boardTitleInput" value="Board 1" maxlength="80" aria-label="Board name">
-            <div class="board-meta"><small id="boardLabel">Board 1</small><small id="boardScopeLabel" class="scope-pill">Permanent</small><label id="classDateLabel" class="class-date-edit hidden">Date <input id="classDateInput" type="date" aria-label="Class note date"></label></div>
-          </div>
-          <div class="board-nav">
-            <button id="boardPrev" class="btn compact">←</button>
-            <button id="boardNext" class="btn compact">→</button>
-            <button id="boardPermanent" class="btn compact" type="button">Permanent</button>
-            <button id="boardHomework" class="btn compact" type="button">Homework</button>
-            <button id="boardAdd" class="btn compact">+ Class Note</button>
-            <button id="boardDelete" class="btn compact danger-text">Delete</button>
-          </div>
-        </div>
-
-        <div class="rich-text-toolbar" aria-label="Teacher note formatting">
-          <button id="boardUnderline" class="btn compact rich-format-btn" type="button" title="Underline selected text"><u>U</u></button>
-          <label class="rich-format-label">Font
-            <select id="boardFontSize" class="rich-format-select" title="Selected text size">
-              <option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">XL</option><option value="6">XXL</option><option value="7">Huge</option>
-            </select>
-          </label>
-          <label class="rich-format-label">Text<input id="boardTextColor" type="color" value="#1f2937" title="Text colour"></label>
-          <label class="rich-format-label">Highlight<input id="boardHighlightColor" type="color" value="#fff59d" title="Highlight colour"></label>
-          <button id="boardLink" class="btn compact" type="button" title="Turn selected text into a clickable web link">🔗 Link</button>
-          <button id="boardClearFormat" class="btn compact" type="button" title="Remove formatting from selected text">Clear</button>
-        </div>
-
-        <div id="boardText" class="board-text board-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true" data-placeholder="Type or paste teacher notes here…"></div>
-
-        <div id="noteInnerSplit" class="splitter horizontal-splitter" title="Drag to resize text and image sections"></div>
-        <section id="imageSection" class="image-section teacher-images" tabindex="0">
-          <div class="image-toolbar gallery-toolbar"><strong>Loading Image Boards…</strong></div>
-        </section>
-      </aside>
     </section>
 
     <footer class="statusbar teacher-statusbar">
