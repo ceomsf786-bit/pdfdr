@@ -28,7 +28,7 @@ const els = {
 };
 
 const state = {
-  token:null, session:null, doc:null, pdf:null, pageNo:1, scale:1.15, fit:true, rendering:false, pendingPage:null,
+  token:null, session:null, doc:null, pdf:null, pdfSources:[], sourcePdfCache:new Map(), pageNo:1, scale:1.15, fit:true, rendering:false, pendingPage:null,
   pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), galleryState:null, selectedGalleryImageId:null, galleryArrange:false, revision:0,
   tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], galleryUndo:[], galleryRedo:[], galleryPointer:null, rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
@@ -1009,9 +1009,57 @@ async function pollStudentSync(){
   }catch{}
 }
 
+async function loadSourcePdf(sourceId){
+  if(state.sourcePdfCache.has(sourceId))return state.sourcePdfCache.get(sourceId);
+  const task=pdfjsLib.getDocument({
+    url:apiUrl('pdf-source',{source:sourceId,rev:state.revision||Date.now()}),
+    httpHeaders:authHeaders(),
+    rangeChunkSize:524288,
+    disableAutoFetch:true,
+    disableStream:false,
+    disableFontFace:false
+  });
+  const pdf=await task.promise;
+  state.sourcePdfCache.set(sourceId,pdf);
+  return pdf;
+}
+function virtualPageLocation(globalPage){
+  let cursor=1;
+  for(const source of state.pdfSources){
+    const count=Math.max(0,Number(source.page_count||0));
+    const end=cursor+count-1;
+    if(globalPage>=cursor&&globalPage<=end){
+      return {source,localPage:Number(source.page_start||1)+(globalPage-cursor)};
+    }
+    cursor=end+1;
+  }
+  return null;
+}
+function buildVirtualPdf(sources,pageCount){
+  state.pdfSources=Array.isArray(sources)?sources:[];
+  state.sourcePdfCache.clear();
+  return {
+    numPages:Math.max(1,Number(pageCount||0)),
+    async getPage(globalPage){
+      const loc=virtualPageLocation(Number(globalPage));
+      if(!loc)throw new Error('PDF page source not found.');
+      const pdf=await loadSourcePdf(loc.source.id);
+      return await pdf.getPage(loc.localPage);
+    }
+  };
+}
 async function loadPdf(){
   showLoading('Loading Google Drive PDF…');
-  // Revision key prevents browser/PDF.js from reusing the pre-insert PDF.
+  let manifest=null;
+  try{manifest=await api('pdf-sources');}catch{}
+  if(manifest?.sources?.length&&!manifest.legacy_composed){
+    state.pdf=buildVirtualPdf(manifest.sources,manifest.page_count);
+    await renderPage(state.pageNo,TEACHER);
+    if(TEACHER)window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));
+    return;
+  }
+  state.pdfSources=[];state.sourcePdfCache.clear();
+  // Legacy/single-file fallback. Existing old composed PDFs remain readable.
   const pdfUrl=apiUrl('pdf',{rev:state.revision||Date.now()});
   const task=pdfjsLib.getDocument({url:pdfUrl,httpHeaders:authHeaders(),rangeChunkSize:524288,disableAutoFetch:true,disableStream:false,disableFontFace:false});
   state.pdf=await task.promise;await renderPage(state.pageNo,TEACHER);if(TEACHER)window.requestIdleCallback?.(()=>prefetchAdjacent().catch(()=>{}));
@@ -1237,7 +1285,25 @@ function deleteSelectedObject(){if(!state.selectedId)return;if(state.activeSurfa
 async function exportAnnotatedPdf(){
   if(!TEACHER||!window.PDFLib)return;
   try{
-    setStatus('Preparing export…');const r=await fetch(apiUrl('pdf'),{headers:authHeaders()});if(!r.ok)throw new Error('Could not download source PDF.');const bytes=await r.arrayBuffer();const {PDFDocument,rgb,StandardFonts}=window.PDFLib;const pdf=await PDFDocument.load(bytes);const font=await pdf.embedFont(StandardFonts.Helvetica);
+    setStatus('Preparing export…');const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
+    let pdf;
+    if(state.pdfSources?.length){
+      pdf=await PDFDocument.create();
+      for(const source of state.pdfSources){
+        const r=await fetch(apiUrl('pdf-source',{source:source.id,export:Date.now()}),{headers:authHeaders(),cache:'no-store'});
+        if(!r.ok)throw new Error('Could not download one of the Google Drive PDFs.');
+        const src=await PDFDocument.load(await r.arrayBuffer());
+        const start=Math.max(0,Number(source.page_start||1)-1);
+        const count=Math.max(1,Number(source.page_count||1));
+        const indexes=Array.from({length:count},(_,k)=>start+k);
+        const copied=await pdf.copyPages(src,indexes);
+        copied.forEach(p=>pdf.addPage(p));
+      }
+    }else{
+      const r=await fetch(apiUrl('pdf'),{headers:authHeaders()});if(!r.ok)throw new Error('Could not download source PDF.');
+      pdf=await PDFDocument.load(await r.arrayBuffer());
+    }
+    const font=await pdf.embedFont(StandardFonts.Helvetica);
     const {data:rows,error}=await supabase.from('snt_pdf_pages').select('page_no,objects').eq('document_id',state.doc.id);if(error)throw error;
     const hex=h=>{const m=(h||'#1f2937').replace('#','');return rgb(parseInt(m.slice(0,2),16)/255,parseInt(m.slice(2,4),16)/255,parseInt(m.slice(4,6),16)/255);};
     for(const row of rows||[]){const page=pdf.getPage(row.page_no-1);if(!page)continue;const {width,height}=page.getSize(),X=x=>x*width,Y=y=>(1-y)*height;
