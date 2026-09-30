@@ -399,3 +399,77 @@ body[data-mode=student] .gallery-overlay{pointer-events:none}
   .teacher-workspace.pdf-focus{grid-template-columns:minmax(0,1fr)!important}
   .student-global-notes-row{grid-template-columns:1fr;grid-auto-rows:minmax(72px,1fr)}
 }
+
+
+/* v3.30 — student hide/show controls live on the draggable divider bars */
+body[data-mode=student] .student-workspace.notes-hidden{
+  grid-template-rows:minmax(0,1fr) 26px 0!important;
+}
+body[data-mode=student] .student-workspace.notes-hidden #studentSplit{
+  display:flex!important;
+}
+body[data-mode=student] .student-workspace.notes-hidden .student-board{display:none!important}
+
+body[data-mode=student] .student-board{
+  --snt-global-row:minmax(72px,var(--student-permanent-h));
+  --snt-class-row:minmax(72px,var(--student-page-h));
+  --snt-images-row:minmax(72px,1fr);
+  grid-template-rows:auto var(--snt-global-row) 26px var(--snt-class-row) 26px var(--snt-images-row)!important;
+}
+body[data-mode=student] .student-workspace.global-notes-hidden .student-board{--snt-global-row:0}
+body[data-mode=student] .student-workspace.global-notes-hidden .student-global-notes-row{display:none!important}
+body[data-mode=student] .student-workspace.class-notes-hidden .student-board{--snt-class-row:0}
+body[data-mode=student] .student-workspace.class-notes-hidden #pageNotesSection{display:none!important}
+body[data-mode=student] .student-workspace.images-hidden .student-board{--snt-images-row:0}
+body[data-mode=student] .student-workspace.images-hidden #imageSection{display:none!important}
+body[data-mode=student] .student-workspace.images-hidden #studentPageSplit{display:flex!important}
+
+body[data-mode=student] .student-resize-bar,
+body[data-mode=student] .note-block-splitter{
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:1px 6px;
+}
+body[data-mode=student] .student-resize-bar{height:26px!important;min-height:26px!important}
+body[data-mode=student] .note-block-splitter{height:26px!important;min-height:26px!important}
+body[data-mode=student] .student-resize-bar>span,
+body[data-mode=student] .note-block-splitter>span{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+.split-hide-actions{display:flex;align-items:center;gap:4px}
+.split-hide-btn{
+  flex:0 0 auto;
+  min-height:20px;
+  padding:1px 7px;
+  border:1px solid #9fb3bf;
+  border-radius:999px;
+  background:#fff;
+  color:#245064;
+  font-size:.61rem;
+  font-weight:800;
+  line-height:1.25;
+  cursor:pointer;
+  touch-action:manipulation;
+  white-space:nowrap;
+}
+.split-hide-btn:hover,.split-hide-btn:focus-visible{background:#edf8f4;border-color:#72ae9b;outline:none}
+
+@media(max-width:650px){
+  body[data-mode=student] .student-board{
+    --snt-global-row:minmax(64px,var(--student-permanent-h));
+    --snt-class-row:minmax(64px,var(--student-page-h));
+    --snt-images-row:minmax(64px,1fr);
+    grid-template-rows:auto var(--snt-global-row) 30px var(--snt-class-row) 30px var(--snt-images-row)!important;
+  }
+  body[data-mode=student] .student-resize-bar,
+  body[data-mode=student] .note-block-splitter{
+    height:30px!important;
+    min-height:30px!important;
+    gap:3px;
+    padding:1px 3px;
+  }
+  .split-hide-btn{font-size:.57rem;padding:2px 6px;min-height:23px}
+  body[data-mode=student] .student-resize-bar>span,
+  body[data-mode=student] .note-block-splitter>span{font-size:.49rem!important;padding:1px 4px!important}
+}
