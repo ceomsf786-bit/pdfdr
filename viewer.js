@@ -1442,7 +1442,12 @@ async function showBookIndex(index){
  }
  if(item.kind==='image'){
   const section=$('imageSection');if(section&&bookEls.imageHost){bookEls.imageHost.replaceChildren(section);section.classList.remove('hidden');}
-  const sel=$('imageBoardSelect');if(sel&&item.source_image_board_no){sel.value=String(item.source_image_board_no);sel.dispatchEvent(new Event('change',{bubbles:true}));}
+  if(item.source_image_board_no){
+    if(window.SNTImageBoards?.open) await window.SNTImageBoards.open(item.source_image_board_no);
+    else {
+      const sel=$('imageBoardSelect');if(sel){sel.value=String(item.source_image_board_no);sel.dispatchEvent(new Event('change',{bubbles:true}));}
+    }
+  }
   if(TEACHER) document.body.classList.add('book-image-active');
  }
 }
