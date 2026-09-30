@@ -27,8 +27,10 @@
         <input id="backupFileInput" type="file" accept=".sntbackup,.zip,application/zip" hidden>
         <button id="fullscreenBtn" class="btn compact">Full screen</button>
         <button id="focusPdfBtn" class="btn compact">PDF focus</button>
+        <button id="togglePdf" class="btn compact" aria-expanded="true">Hide PDF</button>
+        <button id="toggleBoard" class="btn compact" aria-expanded="true">Hide notepad</button>
+        <button id="toggleImages" class="btn compact" aria-expanded="true">Hide images</button>
         <button id="resetLayoutBtn" class="btn compact">Reset layout</button>
-        <button id="toggleBoard" class="btn compact">Notepad</button>
         <button id="signOutBtn" class="btn compact">Sign out</button>
       </div>
     </header>
@@ -99,6 +101,8 @@
           <div class="board-nav">
             <button id="boardPrev" class="btn compact">←</button>
             <button id="boardNext" class="btn compact">→</button>
+            <button id="boardPermanent" class="btn compact" type="button">Permanent</button>
+            <button id="boardHomework" class="btn compact" type="button">Homework</button>
             <button id="boardAdd" class="btn compact">+ Class Note</button>
             <button id="boardDelete" class="btn compact danger-text">Delete</button>
           </div>
