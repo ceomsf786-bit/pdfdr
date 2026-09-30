@@ -83,7 +83,7 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
   body[data-mode=student] .student-topbar #fitPage{grid-column:4;grid-row:1}
   body[data-mode=student] .student-topbar #zoomOut{grid-column:1;grid-row:2}
   body[data-mode=student] .student-topbar #zoomIn{grid-column:2;grid-row:2;justify-self:start}
-  body[data-mode=student] .student-topbar #toggleBoard{
+  body[data-mode=student] .student-topbar #togglePdf{
     grid-column:3;
     grid-row:2;
     min-width:max-content!important;
