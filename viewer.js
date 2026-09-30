@@ -1134,10 +1134,11 @@ function bindSplitHideButton(btn,handler){
 }
 function setPdfFocus(on){
   if(!TEACHER||!els.workspace)return;
-  els.workspace.classList.toggle('pdf-focus',!!on);
-  if(els.focusPdfBtn)els.focusPdfBtn.textContent=on?'Exit PDF focus':'PDF focus';
-  // Android Chrome can report a zero-width grid track during the first layout pass.
-  // Render only after the focused grid has completed two layout frames.
+  /* v3.33: continuous-book workspace is already PDF-first. Focus only hides the top chrome;
+     never hide the XXJournal annotation rail or change the PDF grid. */
+  document.body.classList.toggle('pdf-focus-mode',!!on);
+  els.workspace.classList.remove('pdf-focus');
+  if(els.focusPdfBtn)els.focusPdfBtn.textContent=on?'Exit PDF Focus':'PDF Focus';
   if(state.pdf)requestAnimationFrame(()=>requestAnimationFrame(()=>renderPage(state.pageNo,true)));
 }
 
@@ -1498,3 +1499,9 @@ async function startContinuousBook(){
  catch(e){console.error('Continuous book:',e);setStatus('Book pages: '+e.message);}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startContinuousBook,100),{once:true});else setTimeout(startContinuousBook,100);
+/* Documents can take longer than the original 8s wait on Drive/Android. Start the book layer
+   immediately after the document itself opens as a reliable second path. */
+const __sntOpenTeacherDocument=openTeacherDocument;
+openTeacherDocument=async function(doc){await __sntOpenTeacherDocument(doc);await startContinuousBook();};
+const __sntBootStudent=bootStudent;
+bootStudent=async function(){await __sntBootStudent();await startContinuousBook();};
