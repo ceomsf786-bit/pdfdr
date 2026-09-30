@@ -32,48 +32,6 @@
       <section class="pdf-area"><div id="followHint" class="follow-hint">Hooked LIVE: teacher controls only PDF page + position • YOU control zoom, notes and every resize bar</div>
         <div id="pdfScroller" class="pdf-scroller"><div id="canvasWrap" class="canvas-wrap"><canvas id="pdfCanvas"></canvas><canvas id="overlayCanvas"></canvas></div></div>
       </section>
-
-      <div id="studentSplit" class="splitter horizontal-splitter student-resize-bar" title="Drag to resize PDF and notepad">
-        <span>⇅ PDF / NOTEPAD ⇅</span>
-        <button id="studentToggleNotepad" class="split-hide-btn" type="button" aria-expanded="true">Hide notepad</button>
-      </div>
-
-      <aside id="boardPanel" class="board-panel student-board open">
-        <div class="board-head student-notes-head"><div><strong>Teacher Notes</strong><small>Permanent notes + class notes by date</small></div></div>
-
-        <div class="student-global-notes-row">
-          <section id="permanentNotesSection" class="student-note-card permanent-note-card student-resizable-block">
-            <div class="student-note-card-head"><strong id="permanentTitle">Permanent board</strong><span class="scope-pill">All pages</span></div>
-            <div class="student-block-scroll"><div id="permanentText" class="student-note-text">No permanent notes yet.</div></div>
-          </section>
-          <section id="homeworkNotesSection" class="student-note-card homework-note-card student-resizable-block">
-            <div class="student-note-card-head"><strong id="homeworkTitle">Homework</strong><span class="scope-pill homework-scope">All pages</span></div>
-            <div class="student-block-scroll"><div id="homeworkText" class="student-note-text">No homework note yet.</div></div>
-          </section>
-        </div>
-
-        <div id="studentPermanentSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize global notes and class notes">
-          <span>⇅ GLOBAL NOTES / CLASS NOTES ⇅</span>
-          <div class="split-hide-actions">
-            <button id="studentToggleGlobal" class="split-hide-btn" type="button" aria-expanded="true">Hide global</button>
-            <button id="studentToggleClass" class="split-hide-btn" type="button" aria-expanded="true">Hide class</button>
-          </div>
-        </div>
-
-        <section id="pageNotesSection" class="student-note-card page-notes-card student-resizable-block">
-          <div class="student-note-card-head"><strong>Class notes</strong><span id="pageNotesBadge" class="scope-pill page-scope">By date</span></div>
-          <div id="pageNotesList" class="page-notes-list student-block-scroll">No class notes yet.</div>
-        </section>
-
-        <div id="studentPageSplit" class="splitter horizontal-splitter note-block-splitter" title="Drag to resize class notes and image boards">
-          <span>⇅ CLASS NOTES / IMAGE BOARDS ⇅</span>
-          <button id="studentToggleImages" class="split-hide-btn" type="button" aria-expanded="true">Hide imageboards</button>
-        </div>
-
-        <section id="imageSection" class="image-section student-image-section student-resizable-block">
-          <div class="image-toolbar gallery-toolbar"><strong id="studentImageTitle">Teacher image boards</strong><span id="imageCounter">0 images</span></div>
-        </section>
-      </aside>
     </section>
 
     <footer class="statusbar"><span id="statusText">View only</span><span id="liveText">Live</span></footer>
