@@ -15,7 +15,7 @@ const els = {
   pdfScroller:$('pdfScroller'), canvasWrap:$('canvasWrap'), pdfCanvas:$('pdfCanvas'), overlayCanvas:$('overlayCanvas'),
   prevPage:$('prevPage'), nextPage:$('nextPage'), pageInput:$('pageInput'), pageCount:$('pageCount'), zoomOut:$('zoomOut'), zoomIn:$('zoomIn'), fitPage:$('fitPage'),
   boardPanel:$('boardPanel'), toggleBoard:$('toggleBoard'), boardText:$('boardText'), boardLabel:$('boardLabel'), boardScopeLabel:$('boardScopeLabel'), boardTitleInput:$('boardTitleInput'), boardTitleDisplay:$('boardTitleDisplay'), classDateInput:$('classDateInput'), classDateLabel:$('classDateLabel'),
-  permanentNotesSection:$('permanentNotesSection'), permanentTitle:$('permanentTitle'), permanentText:$('permanentText'), pageNotesSection:$('pageNotesSection'), pageNotesBadge:$('pageNotesBadge'), pageNotesList:$('pageNotesList'), studentImageTitle:$('studentImageTitle'),
+  permanentNotesSection:$('permanentNotesSection'), permanentTitle:$('permanentTitle'), permanentText:$('permanentText'), homeworkNotesSection:$('homeworkNotesSection'), homeworkTitle:$('homeworkTitle'), homeworkText:$('homeworkText'), pageNotesSection:$('pageNotesSection'), pageNotesBadge:$('pageNotesBadge'), pageNotesList:$('pageNotesList'), studentImageTitle:$('studentImageTitle'),
   boardPrev:$('boardPrev'), boardNext:$('boardNext'), boardAdd:$('boardAdd'), boardDelete:$('boardDelete'),
   imageSection:$('imageSection'), imageStage:$('imageStage'), galleryZoomWrap:$('galleryZoomWrap'), galleryBoard:$('galleryBoard'), galleryImagesLayer:$('galleryImagesLayer'), galleryOverlayCanvas:$('galleryOverlayCanvas'), imageCounter:$('imageCounter'), imagePrev:$('imagePrev'), imageNext:$('imageNext'), imageZoomOut:$('imageZoomOut'), imageZoomReset:$('imageZoomReset'), imageZoomIn:$('imageZoomIn'), galleryArrangeBtn:$('galleryArrangeBtn'), galleryTileBtn:$('galleryTileBtn'), pasteImageBtn:$('pasteImageBtn'), deleteImageBtn:$('deleteImageBtn'), imageFileInput:$('imageFileInput'),
   statusText:$('statusText'), liveText:$('liveText'),
@@ -23,7 +23,7 @@ const els = {
   toolSplit:$('toolSplit'), noteSplit:$('noteSplit'), noteInnerSplit:$('noteInnerSplit'), studentSplit:$('studentSplit'), studentPermanentSplit:$('studentPermanentSplit'), studentPageSplit:$('studentPageSplit'),
   loginPanel:$('loginPanel'), loginForm:$('loginForm'), emailInput:$('emailInput'), passwordInput:$('passwordInput'), signOutBtn:$('signOutBtn'),
   libraryBtn:$('libraryBtn'), libraryDialog:$('libraryDialog'), libraryList:$('libraryList'), createDocBtn:$('createDocBtn'), newTitle:$('newTitle'), newDriveUrl:$('newDriveUrl'), copyStudentLink:$('copyStudentLink'), hookStudentsBtn:$('hookStudentsBtn'), exportPdf:$('exportPdf'),
-  fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn'),
+  fullscreenBtn:$('fullscreenBtn'), focusPdfBtn:$('focusPdfBtn'), resetLayoutBtn:$('resetLayoutBtn'), togglePdf:$('togglePdf'), toggleImages:$('toggleImages'), boardPermanent:$('boardPermanent'), boardHomework:$('boardHomework'),
   boardUnderline:$('boardUnderline'), boardFontSize:$('boardFontSize'), boardTextColor:$('boardTextColor'), boardHighlightColor:$('boardHighlightColor'), boardClearFormat:$('boardClearFormat')
 };
 
@@ -32,7 +32,7 @@ const state = {
   pageObjects:[], pageCache:new Map(), boards:[], boardNo:1, images:[], imageIndex:0, imageBlobUrls:new Map(), galleryState:null, selectedGalleryImageId:null, galleryArrange:false, revision:0,
   tool:'pen', activeSurface:'pdf', pointer:null, selectedId:null, clipboard:null, undo:[], redo:[], galleryUndo:[], galleryRedo:[], galleryPointer:null, rafPending:false,
   saveTimer:null, boardSaveTimer:null, boardTextTimer:null, boardTitleTimer:null, pollTimer:null, heartbeatTimer:null,
-  boardOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
+  boardOpen:true, pdfOpen:true, imagesOpen:true, teacherOnline:false, studentHooked:true, followTeacher:true, liveBoardNo:1, liveImageId:null, liveScrollRatio:0, liveCenterX:.5, liveCenterY:.5, liveZoom:1, imageZoom:.5, pinch:null, scrollSyncTimer:null,
   liveChannel:null, liveReady:false, liveSeq:0, broadcastTimer:null,
   remoteViewPending:null, remoteViewBusy:false, remoteViewTs:0, remoteViewSeq:0, lastRealtimeAt:0,
   pageBroadcastTimer:null, boardBroadcastTimer:null, boardSelectionRange:null, touchPan:null, gallerySaveTimer:null, galleryBroadcastTimer:null, galleryMigrating:false, teacherReleasing:false
@@ -277,9 +277,9 @@ function currentBoardRealtimePayload(){
       board_no:Number(state.boardNo),
       title:(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,
       text_content:getBoardEditorStorage(),
-      board_scope:b.is_permanent?'global':'class',
-      page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),
-      class_date:b.is_permanent?null:(b.class_date||localDateISO()),
+      board_scope:b.is_permanent?'global':boardIsHomework(b)?'homework':'class',
+      page_no:(b.is_permanent||boardIsHomework(b))?1:Number(b.page_no||state.pageNo),
+      class_date:(b.is_permanent||boardIsHomework(b))?null:(b.class_date||localDateISO()),
       is_permanent:!!b.is_permanent
     },
     sent_at:Date.now()
@@ -321,7 +321,7 @@ function applyRemotePageContent(payload){
 function applyRemoteBoardContent(payload){
   if(TEACHER||!payload||payload.doc_id!==state.doc?.id||!payload.board)return;
   const b=payload.board;
-  if(!(b.is_permanent===true||b.board_scope==='class'||b.board_scope==='page'))return;
+  if(!(b.is_permanent===true||b.board_scope==='homework'||b.board_scope==='class'||b.board_scope==='page'))return;
   const i=state.boards.findIndex(x=>Number(x.board_no)===Number(b.board_no));
   if(i>=0)state.boards[i]={...state.boards[i],...b};
   else state.boards.push({...b});
@@ -405,7 +405,9 @@ async function loadGalleryState(force=false){
     if(TEACHER&&!state.galleryState.legacy_migrated)await migrateLegacyImageAnnotations();
   }catch(e){
     if(!state.galleryState)state.galleryState=defaultGalleryState();
-    ensureGalleryPlacements();setStatus('Gallery state load failed: '+e.message);
+    ensureGalleryPlacements();
+    console.warn('Gallery state unavailable; continuing with empty gallery.',e);
+    if(TEACHER)setStatus('Ready');
   }
 }
 function saveGalleryStateSoon(delay=120){
@@ -648,7 +650,7 @@ function persistStudentState(){
     const cs=getComputedStyle(document.documentElement);
     localStorage.setItem(`sntpdf:${state.doc.id}`,JSON.stringify({
       pageNo:state.pageNo,boardNo:state.boardNo,scale:state.scale,fit:state.fit,
-      boardOpen:state.boardOpen,imageIndex:state.imageIndex,imageZoom:state.imageZoom,
+      boardOpen:state.boardOpen,pdfOpen:state.pdfOpen,imagesOpen:state.imagesOpen,imageIndex:state.imageIndex,imageZoom:state.imageZoom,
       studentNoteH:cs.getPropertyValue('--student-note-h').trim(),
       permanentH:cs.getPropertyValue('--student-permanent-h').trim(),
       pageNotesH:cs.getPropertyValue('--student-page-h').trim()
@@ -659,7 +661,7 @@ function restoreStudentState(){
   if(TEACHER || !state.doc) return;
   try{
     const v=JSON.parse(localStorage.getItem(`sntpdf:${state.doc.id}`)||'null'); if(!v) return;
-    state.pageNo=Math.max(1,Number(v.pageNo||1)); state.boardNo=Math.max(1,Number(v.boardNo||1)); state.scale=Math.max(.4,Math.min(3.5,Number(v.scale||1.15))); state.fit=v.fit!==false; state.boardOpen=v.boardOpen!==false; state.imageIndex=Math.max(0,Number(v.imageIndex||0)); state.imageZoom=Math.max(.2,Math.min(1.5,Number(v.imageZoom||.5)));
+    state.pageNo=Math.max(1,Number(v.pageNo||1)); state.boardNo=Math.max(1,Number(v.boardNo||1)); state.scale=Math.max(.4,Math.min(3.5,Number(v.scale||1.15))); state.fit=v.fit!==false; state.boardOpen=v.boardOpen!==false; state.pdfOpen=v.pdfOpen!==false; state.imagesOpen=v.imagesOpen!==false; state.imageIndex=Math.max(0,Number(v.imageIndex||0)); state.imageZoom=Math.max(.2,Math.min(1.5,Number(v.imageZoom||.5)));
     if(v.studentNoteH)document.documentElement.style.setProperty('--student-note-h',v.studentNoteH);
     if(v.permanentH)document.documentElement.style.setProperty('--student-permanent-h',v.permanentH);
     if(v.pageNotesH)document.documentElement.style.setProperty('--student-page-h',v.pageNotesH);
@@ -776,8 +778,10 @@ function formatClassDate(value){
 }
 function boardByNo(no=state.boardNo){return state.boards.find(b=>Number(b.board_no)===Number(no));}
 function boardIsPermanent(b=boardByNo()){return !!b?.is_permanent;}
-function boardAppliesToPage(b,page=state.pageNo){return !!b && (b.is_permanent===true || b.board_scope==='class' || b.board_scope==='page');}
+function boardIsHomework(b=boardByNo()){return b?.board_scope==='homework';}
+function boardAppliesToPage(b,page=state.pageNo){return !!b && (b.is_permanent===true || b.board_scope==='homework' || b.board_scope==='class' || b.board_scope==='page');}
 function firstPermanentBoard(){return state.boards.find(b=>b.is_permanent===true)||state.boards[0]||null;}
+function homeworkBoard(){return state.boards.find(b=>b.board_scope==='homework')||null;}
 function ensureApplicableBoard(){
   if(boardAppliesToPage(boardByNo()))return;
   const permanent=firstPermanentBoard();state.boardNo=permanent?.board_no||state.boards[0]?.board_no||1;
@@ -785,10 +789,11 @@ function ensureApplicableBoard(){
 async function ensurePermanentBoard(){
   if(!TEACHER||!state.doc)return;
   const {data,error}=await supabase.from('snt_pdf_boards').select('board_no,title,text_content,board_scope,page_no,class_date,is_permanent,updated_at').eq('document_id',state.doc.id).order('board_no');if(error)throw error;
-  const existing=(data||[]).find(b=>b.is_permanent===true);
-  if(existing)return;
-  const next=Math.max(0,...(data||[]).map(x=>Number(x.board_no)))+1;
-  const {error:e}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});if(e)throw e;
+  const rows=data||[];
+  const existing=rows.find(b=>b.is_permanent===true);
+  let next=Math.max(0,...rows.map(x=>Number(x.board_no)))+1;
+  if(!existing){const {error:e}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next++,title:'Permanent board',text_content:'',objects:[],board_scope:'global',page_no:1,is_permanent:true});if(e)throw e;}
+  if(!rows.some(b=>b.board_scope==='homework')){const {error:e}=await supabase.from('snt_pdf_boards').insert({document_id:state.doc.id,board_no:next,title:'Homework',text_content:'',objects:[],board_scope:'homework',page_no:1,is_permanent:false});if(e)throw e;}
 }
 async function loadTeacherBoards(){
   await ensurePermanentBoard();
@@ -799,6 +804,7 @@ async function loadTeacherBoards(){
 function renderStudentNotes(){
   if(TEACHER) return;
   const permanent=firstPermanentBoard();
+  const homework=homeworkBoard();
   const classNotes=state.boards
     .filter(b=>!b.is_permanent && (b.board_scope==='class'||b.board_scope==='page'))
     .sort((a,b)=>{
@@ -807,6 +813,8 @@ function renderStudentNotes(){
     });
   if(els.permanentTitle)els.permanentTitle.textContent=permanent?.title||'Permanent board';
   renderStoredBoardContent(els.permanentText,permanent?.text_content||'','No permanent notes yet.');
+  if(els.homeworkTitle)els.homeworkTitle.textContent=homework?.title||'Homework';
+  renderStoredBoardContent(els.homeworkText,homework?.text_content||'','No homework note yet.');
   if(els.pageNotesBadge)els.pageNotesBadge.textContent=classNotes.length?`${classNotes.length} dated note${classNotes.length===1?'':'s'}`:'By date';
   if(els.pageNotesList){
     els.pageNotesList.replaceChildren();
@@ -842,26 +850,29 @@ function loadBoardText(){
   setBoardEditorContent(b.text_content||'');
   if(els.boardTitleInput)els.boardTitleInput.value=b.title||`Board ${state.boardNo}`;
   if(els.boardTitleDisplay)els.boardTitleDisplay.textContent=b.title||'Teacher Notepad';
-  if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':'Class note';
+  const isHomework=boardIsHomework(b);
+  if(els.boardLabel)els.boardLabel.textContent=b.is_permanent?'All pages':isHomework?'All pages':'Class note';
   if(els.boardScopeLabel){
-    els.boardScopeLabel.textContent=b.is_permanent?'Permanent':formatClassDate(noteDateValue(b));
-    els.boardScopeLabel.classList.toggle('page-scope',!b.is_permanent);
+    els.boardScopeLabel.textContent=b.is_permanent?'Permanent':isHomework?'Homework':formatClassDate(noteDateValue(b));
+    els.boardScopeLabel.classList.toggle('page-scope',!b.is_permanent&&!isHomework);
   }
-  if(els.classDateLabel)els.classDateLabel.classList.toggle('hidden',!!b.is_permanent);
+  if(els.classDateLabel)els.classDateLabel.classList.toggle('hidden',!!b.is_permanent||isHomework);
   if(els.classDateInput){
-    els.classDateInput.disabled=!!b.is_permanent;
-    els.classDateInput.value=b.is_permanent?'':noteDateValue(b);
+    els.classDateInput.disabled=!!b.is_permanent||isHomework;
+    els.classDateInput.value=(b.is_permanent||isHomework)?'':noteDateValue(b);
   }
-  if(els.boardDelete){els.boardDelete.disabled=!!b.is_permanent;els.boardDelete.title=b.is_permanent?'The permanent board cannot be deleted.':'Delete this class note';}
+  if(els.boardDelete){els.boardDelete.disabled=!!b.is_permanent||isHomework;els.boardDelete.title=b.is_permanent?'The permanent board cannot be deleted.':isHomework?'The homework board cannot be deleted.':'Delete this class note';}
   const arr=state.boards.map(x=>Number(x.board_no)),i=arr.indexOf(Number(state.boardNo));if(els.boardPrev)els.boardPrev.disabled=i<=0;if(els.boardNext)els.boardNext.disabled=i<0||i>=arr.length-1;
 }
 async function saveBoardNow(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
   const title=(els.boardTitleInput?.value||b.title||`Board ${state.boardNo}`).trim().slice(0,80)||`Board ${state.boardNo}`,text=getBoardEditorStorage();
-  const classDate=b.is_permanent?null:(els.classDateInput?.value||b.class_date||localDateISO());
-  const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:b.is_permanent?'global':'class',page_no:b.is_permanent?1:Number(b.page_no||state.pageNo),class_date:classDate,is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
+  const isHomework=boardIsHomework(b);
+  const classDate=(b.is_permanent||isHomework)?null:(els.classDateInput?.value||b.class_date||localDateISO());
+  const scope=b.is_permanent?'global':isHomework?'homework':'class';
+  const row={document_id:state.doc.id,board_no:state.boardNo,title,text_content:text,objects:[],board_scope:scope,page_no:(b.is_permanent||isHomework)?1:Number(b.page_no||state.pageNo),class_date:classDate,is_permanent:!!b.is_permanent,updated_at:new Date().toISOString()};
   const {error}=await supabase.from('snt_pdf_boards').upsert(row,{onConflict:'document_id,page_no,board_no'});if(error){setStatus('Notepad save failed: '+error.message);return;}
-  b.title=title;b.text_content=text;b.board_scope=b.is_permanent?'global':'class';b.class_date=classDate;broadcastBoardContent();setStatus('Notepad saved');
+  b.title=title;b.text_content=text;b.board_scope=scope;b.class_date=classDate;broadcastBoardContent();setStatus('Notepad saved');
 }
 function saveBoardSoon(){
   scheduleBoardContentBroadcast(60);
@@ -879,6 +890,7 @@ async function addBoard(){
 async function deleteBoard(){
   if(!TEACHER||!state.doc)return;const b=boardByNo();if(!b)return;
   if(b.is_permanent)return setStatus('The permanent board cannot be deleted.');
+  if(boardIsHomework(b))return setStatus('The homework board cannot be deleted.');
   if(!confirm(`Delete “${b.title||'this class note'}”?`))return;
   setStatus('Deleting board…');
   const {error}=await supabase.from('snt_pdf_boards').delete().eq('document_id',state.doc.id).eq('board_no',b.board_no);if(error)return setStatus('Could not delete board: '+error.message);
@@ -1034,6 +1046,30 @@ function setBoardOpen(open){
   }
   persistStudentState();
 }
+function setPdfOpen(open){
+  state.pdfOpen=!!open;
+  els.workspace?.classList.toggle('pdf-hidden',!state.pdfOpen);
+  if(els.togglePdf){els.togglePdf.textContent=state.pdfOpen?'Hide PDF':'Show PDF';els.togglePdf.setAttribute('aria-expanded',String(state.pdfOpen));}
+  if(state.pdfOpen&&state.pdf){
+    requestAnimationFrame(()=>requestAnimationFrame(()=>renderPage(state.pageNo,true)));
+  }
+  persistStudentState();
+}
+function setImagesOpen(open){
+  state.imagesOpen=!!open;
+  els.workspace?.classList.toggle('images-hidden',!state.imagesOpen);
+  if(els.toggleImages){els.toggleImages.textContent=state.imagesOpen?'Hide images':'Show images';els.toggleImages.setAttribute('aria-expanded',String(state.imagesOpen));}
+  if(state.imagesOpen)requestAnimationFrame(()=>renderGallery());
+  persistStudentState();
+}
+function setPdfFocus(on){
+  if(!TEACHER||!els.workspace)return;
+  els.workspace.classList.toggle('pdf-focus',!!on);
+  if(els.focusPdfBtn)els.focusPdfBtn.textContent=on?'Exit PDF focus':'PDF focus';
+  // Android Chrome can report a zero-width grid track during the first layout pass.
+  // Render only after the focused grid has completed two layout frames.
+  if(state.pdf)requestAnimationFrame(()=>requestAnimationFrame(()=>renderPage(state.pageNo,true)));
+}
 
 function bindResizer(handle,onMove,onEnd){
   if(!handle)return;handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.classList.add('dragging');handle.setPointerCapture?.(e.pointerId);const move=ev=>onMove(ev);const up=()=>{handle.classList.remove('dragging');handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',up);handle.removeEventListener('pointercancel',up);onEnd?.();};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',up);handle.addEventListener('pointercancel',up);});
@@ -1135,6 +1171,8 @@ function bindCommon(){
   els.zoomIn?.addEventListener('click',async()=>{state.fit=false;state.scale=Math.min(3.5,state.scale+.15);await renderPage(state.pageNo);if(studentFollowActive())applyTeacherCenter();persistStudentState();});
   els.fitPage?.addEventListener('click',async()=>{state.fit=true;await renderPage(state.pageNo);if(studentFollowActive())applyTeacherCenter();persistStudentState();});
   els.toggleBoard?.addEventListener('click',()=>setBoardOpen(!state.boardOpen));
+  els.togglePdf?.addEventListener('click',()=>setPdfOpen(!state.pdfOpen));
+  els.toggleImages?.addEventListener('click',()=>setImagesOpen(!state.imagesOpen));
   els.boardPrev?.addEventListener('click',()=>moveBoard(-1));els.boardNext?.addEventListener('click',()=>moveBoard(1));
   // Student note/image browsing is always local, whether hooked or unhooked.
   els.imagePrev?.addEventListener('click',()=>moveImage(-1));els.imageNext?.addEventListener('click',()=>moveImage(1));
@@ -1169,12 +1207,14 @@ function bindTeacher(){
   els.boardClearFormat?.addEventListener('click',()=>applyBoardFormat('removeFormat'));
   els.boardTitleInput?.addEventListener('input',saveBoardSoon);els.boardTitleInput?.addEventListener('change',()=>{const b=boardByNo();if(b)b.title=els.boardTitleInput.value.trim()||`Board ${state.boardNo}`;broadcastBoardContent();pushLiveState();});
   els.classDateInput?.addEventListener('change',()=>{const b=boardByNo();if(!b||b.is_permanent)return;b.class_date=els.classDateInput.value||localDateISO();loadBoardText();saveBoardSoon();broadcastContentRefresh('boards');});
+  els.boardPermanent?.addEventListener('click',()=>{const b=firstPermanentBoard();if(b){state.boardNo=Number(b.board_no);loadBoardText();}});
+  els.boardHomework?.addEventListener('click',()=>{const b=homeworkBoard();if(b){state.boardNo=Number(b.board_no);loadBoardText();}});
   els.boardAdd?.addEventListener('click',addBoard);els.boardDelete?.addEventListener('click',deleteBoard);
   els.pasteImageBtn?.addEventListener('click',()=>els.imageFileInput?.click());els.imageFileInput?.addEventListener('change',()=>{const fs=[...(els.imageFileInput.files||[])];if(fs.length)uploadImages(fs);els.imageFileInput.value='';});els.deleteImageBtn?.addEventListener('click',deleteCurrentImage);els.galleryArrangeBtn?.addEventListener('click',()=>setGalleryArrange(!state.galleryArrange));els.galleryTileBtn?.addEventListener('click',autoTileGallery);
   document.addEventListener('paste',e=>{if(!TEACHER)return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!item)return;const file=item.getAsFile();if(file){e.preventDefault();uploadImage(file);}});
   els.copyStudentLink?.addEventListener('click',async()=>{await copyText(studentUrl());setStatus('Student link copied');});els.hookStudentsBtn?.addEventListener('click',()=>setStudentHooked(!state.studentHooked).catch(e=>setStatus(e.message)));els.exportPdf?.addEventListener('click',exportAnnotatedPdf);els.libraryBtn?.addEventListener('click',async()=>{await releaseTeacherControl({silent:true});await openLibrary();});els.signOutBtn?.addEventListener('click',async()=>{await releaseTeacherControl({silent:true});await supabase.auth.signOut();location.href='./teacher.html';});els.createDocBtn?.addEventListener('click',createDocumentFromForm);
   els.fullscreenBtn?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch{}});
-  els.focusPdfBtn?.addEventListener('click',()=>{els.workspace.classList.toggle('pdf-focus');els.focusPdfBtn.textContent=els.workspace.classList.contains('pdf-focus')?'Show tools':'PDF focus';setTimeout(()=>state.fit&&state.pdf&&renderPage(state.pageNo),80);});
+  els.focusPdfBtn?.addEventListener('click',()=>setPdfFocus(!els.workspace.classList.contains('pdf-focus')));
   els.resetLayoutBtn?.addEventListener('click',resetLayout);
   els.pdfScroller?.addEventListener('scroll',()=>{
     if(els.toolRail&&window.innerWidth>650)els.toolRail.style.transform=`translateY(${-els.pdfScroller.scrollTop}px)`;
@@ -1251,7 +1291,7 @@ async function bootStudent(){
   try{
     const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.studentHooked=init.document.student_hooked!==false;state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=state.liveBoardNo;els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
     if(studentFollowActive()){state.pageNo=Math.max(1,Number(init.document.live_page||1));state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.boardNo=state.liveBoardNo;}
-    setBoardOpen(true);await loadPdf();await loadImages(true);await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');refreshStudentHookUi();
+    setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setImagesOpen(state.imagesOpen);await loadPdf();await loadImages(true);await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setImagesOpen(state.imagesOpen);refreshStudentHookUi();
     state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||900));await pollStudentSync();
   }catch(e){showError(e.message);}
 }
