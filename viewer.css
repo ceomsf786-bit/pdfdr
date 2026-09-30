@@ -507,3 +507,10 @@ body.continuous-book-ready .book-image-host .image-section{position:absolute!imp
  body.continuous-book-ready .teacher-workspace .pdf-scroller{padding-left:50px}
  body.continuous-book-ready .book-image-host .image-section{left:48px}
 }
+
+/* v3.33 focus = distraction-free PDF, never blank */
+body.continuous-book-ready.pdf-focus-mode .topbar{display:none!important}
+body.continuous-book-ready.pdf-focus-mode .teacher-workspace .pdf-area{inset:0!important}
+body.continuous-book-ready.pdf-focus-mode .tool-rail-inline{top:0!important}
+body.continuous-book-ready.pdf-focus-mode .teacher-workspace .pdf-scroller{padding-left:60px!important}
+body.continuous-book-ready .tool-rail-inline{transform:none!important}
