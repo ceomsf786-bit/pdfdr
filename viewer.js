@@ -1438,7 +1438,7 @@ async function refreshBookSequence(){
  const current=bookItem(),key=current?.key;
  await loadBookPages();
  const idx=state.bookSequence.findIndex(x=>x.key===key);
- if(idx>=0){state.bookIndex=idx;syncBookCounter();if(!TEACHER&&bookItem()?.kind==='note')renderStoredBoardContent(bookEls.editor,bookItem().text_content||'','No notes on this page yet.');}
+ if(idx>=0){state.bookIndex=idx;syncBookCounter();if(!TEACHER&&bookItem()?.kind==='note'&&current?.text_content!==bookItem().text_content){const scroll=bookEls.editor.scrollTop;renderStoredBoardContent(bookEls.editor,bookItem().text_content||'','No notes on this page yet.');bookEls.editor.scrollTop=scroll;}}
  else {const anchor=current?.pdfPage||current?.anchor_pdf_page||state.pageNo;await showBookIndex(bookPageIndex(String(anchor)));}
 }
 async function showBookIndex(index){
@@ -1572,4 +1572,3 @@ async function startContinuousBook(){
 /* Initialize only after the PDF completes, including slow mobile downloads. */
 const __sntOpenTeacherDocument=openTeacherDocument;
 openTeacherDocument=async function(doc){await __sntOpenTeacherDocument(doc);await startContinuousBook();};
-
