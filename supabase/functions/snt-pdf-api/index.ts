@@ -72,6 +72,23 @@ if(action==="pdf-source"&&req.method==="GET"){
   return new Response(upstream.body,{status:upstream.status,headers:h});
 }
 
+if(action==="delete-book-page"&&req.method==="POST"){
+  if(role!=="teacher")return json({error:"Only teachers can delete added pages."},403);
+  const pageId=String(url.searchParams.get("page")||"").trim();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId))return json({error:"Choose an added Note or Image/Drawing Page."},400);
+  const {data:page,error:pageError}=await admin.from("snt_pdf_book_pages").select("id,kind,anchor_pdf_page").eq("document_id",doc.id).eq("id",pageId).maybeSingle();
+  if(pageError)throw pageError;
+  if(!page||!["note","image"].includes(page.kind))return json({error:"That added page was not found."},404);
+  // Remove only the book entry; preserve backing assets that may be shared by legacy notes/boards.
+  const {data:removed,error}=await admin.from("snt_pdf_book_pages").delete().eq("document_id",doc.id).eq("id",pageId).select("id").maybeSingle();
+  if(error)throw error;
+  if(!removed)return json({error:"That added page was already removed."},404);
+  const livePatch=doc.live_inserted_page_id===pageId||doc.live_book_key===`insert:${pageId}`
+    ?{live_inserted_page_id:null,live_book_key:`pdf:${page.anchor_pdf_page}`,live_page:page.anchor_pdf_page}:{};
+  await touchRevision(doc,livePatch);
+  return json({ok:true,deleted_page_id:pageId,anchor_pdf_page:page.anchor_pdf_page});
+}
+
 if(action==="insert-drive-source"&&req.method==="POST"){
   if(role!=="teacher")throw new Error("AUTH_REQUIRED");
   if(doc.composed_pdf_path)throw new Error("LEGACY_COMPOSED_PDF");

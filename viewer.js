@@ -1002,6 +1002,7 @@ async function pollStudentSync(){
       await loadStudentBoards();
     }
 
+    if(revisionChanged&&state.bookSequence.length)await refreshBookSequence();
     if(revisionChanged&&!realtimeEstablished)await loadImages(true);
     state.revision=newRevision;
     if(previousLiveImage!==state.liveImageId&&state.liveImageId){ selectGalleryImage(state.liveImageId,false); }
@@ -1407,8 +1408,8 @@ function bookToken(){return new URLSearchParams(location.hash.replace(/^#/,'')).
 function buildBookSequence(){
  const n=state.pdf?.numPages||0, out=[];
  for(let p=1;p<=n;p++){
-  out.push({key:'pdf:'+p,kind:'pdf',pdfPage:p,title:'PDF page '+p});
-  state.bookPages.filter(x=>Number(x.anchor_pdf_page)===p).sort((a,b)=>Number(a.sort_no)-Number(b.sort_no)).forEach(x=>out.push({...x,key:'insert:'+x.id}));
+  out.push({key:'pdf:'+p,kind:'pdf',pdfPage:p,displayNumber:String(p),title:'PDF page '+p});
+  state.bookPages.filter(x=>Number(x.anchor_pdf_page)===p).sort((a,b)=>Number(a.sort_no)-Number(b.sort_no)).forEach((x,i)=>out.push({...x,key:'insert:'+x.id,displayNumber:p+'.'+(i+1)}));
  }
  state.bookSequence=out;
 }
@@ -1418,13 +1419,23 @@ async function loadBookPages(){
  state.bookPages=Array.isArray(data?.pages)?data.pages:[];state.permanentNote=data?.permanent||{};
  buildBookSequence();
 }
+function bookPageIndex(label){return state.bookSequence.findIndex(x=>x.displayNumber===String(label).trim());}
 function bookItem(){return state.bookSequence[state.bookIndex]||state.bookSequence[0]||null;}
 function syncBookCounter(){
  const item=bookItem();if(!item)return;
- if(els.pageInput){els.pageInput.value=String(state.bookIndex+1);els.pageInput.min='1';els.pageInput.max=String(state.bookSequence.length);}
- if(els.pageCount)els.pageCount.textContent='/ '+state.bookSequence.length;
+ if(els.pageInput){els.pageInput.type='text';els.pageInput.inputMode='decimal';els.pageInput.value=item.displayNumber;els.pageInput.removeAttribute('min');els.pageInput.removeAttribute('max');els.pageInput.setAttribute('aria-label','Page number, for example 4 or 4.1');}
+ if(els.pageCount)els.pageCount.textContent='/ '+state.pdf.numPages;
+ $('deleteBookPageBtn')?.classList.toggle('hidden',!TEACHER||item.kind==='pdf');
  if(els.prevPage)els.prevPage.disabled=state.bookIndex<=0||studentFollowActive();
  if(els.nextPage)els.nextPage.disabled=state.bookIndex>=state.bookSequence.length-1||studentFollowActive();
+}
+async function refreshBookSequence(){
+ if(!state.bookSequence.length)return;
+ const current=bookItem(),key=current?.key;
+ await loadBookPages();
+ const idx=state.bookSequence.findIndex(x=>x.key===key);
+ if(idx>=0){state.bookIndex=idx;syncBookCounter();}
+ else {const anchor=current?.pdfPage||current?.anchor_pdf_page||state.pageNo;await showBookIndex(bookPageIndex(String(anchor)));}
 }
 async function showBookIndex(index){
  if(!state.bookSequence.length)return;
@@ -1469,6 +1480,21 @@ async function insertBookPage(){
  const {data,error}=await supabase.rpc('snt_pdf_book_create_page',{p_document_id:state.doc.id,p_kind:kind,p_title:title.trim(),p_anchor_pdf_page:anchor});if(error)throw error;
  await loadBookPages();const idx=state.bookSequence.findIndex(x=>x.id===data.id);await showBookIndex(idx>=0?idx:state.bookIndex+1);
 }
+async function deleteBookPage(){
+ const item=bookItem();
+ if(!TEACHER||!state.doc||!item||item.kind==='pdf')return;
+ if(!confirm(`Delete added page ${item.displayNumber} “${item.title||'Untitled'}”?`))return;
+ const button=$('deleteBookPageBtn');if(button)button.disabled=true;
+ try{
+  clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;
+  await window.SNTImageBoards?.flush?.();
+  const r=await fetch(apiUrl('delete-book-page',{page:item.id}),{method:'POST',headers:authHeaders()});
+  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Could not delete this added page.');
+  await loadBookPages();
+  await showBookIndex(bookPageIndex(String(item.anchor_pdf_page)));
+  setStatus('Added page deleted');
+ }finally{if(button)button.disabled=false;}
+}
 function openPermanent(){
  const p=state.permanentNote||{};if(bookEls.permTitle)bookEls.permTitle.value=p.title||'Permanent Note';
  if(bookEls.permEditor){if(TEACHER){bookEls.permEditor.contentEditable='true';setBookHtml(bookEls.permEditor,p.text_content||'');}else{bookEls.permEditor.contentEditable='false';renderStoredBoardContent(bookEls.permEditor,p.text_content||'','No permanent note yet.');}}
@@ -1487,6 +1513,7 @@ async function closePermanent(save=true){
 function bindBookUi(){
  const pdfArea=els.workspace?.querySelector('.pdf-area');
  if(pdfArea&&bookEls.page)pdfArea.appendChild(bookEls.page);
+ $('deleteBookPageBtn')?.addEventListener('click',()=>deleteBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.insert?.addEventListener('click',()=>insertBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.permanent?.addEventListener('click',openPermanent);
  $('permanentNoteClose')?.addEventListener('click',()=>closePermanent(true).catch(e=>alert(e.message)));
@@ -1497,7 +1524,7 @@ function bindBookUi(){
  els.prevPage=$('prevPage');els.nextPage=$('nextPage');els.pageInput=$('pageInput');
  els.prevPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex-1);});
  els.nextPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex+1);});
- els.pageInput?.addEventListener('change',()=>{if(!studentFollowActive())showBookIndex(Number(els.pageInput.value)-1);});
+ els.pageInput?.addEventListener('change',()=>{if(studentFollowActive()){syncBookCounter();return;}const idx=bookPageIndex(els.pageInput.value);if(idx>=0)showBookIndex(idx).catch(e=>setStatus(e.message));else{syncBookCounter();setStatus('Enter an existing page, for example 4 or 4.1.');}});
 }
 async function startContinuousBook(){
  for(let i=0;i<80&&(!state.pdf||!state.doc);i++)await new Promise(r=>setTimeout(r,100));

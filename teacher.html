@@ -27,6 +27,7 @@
         <input id="backupFileInput" type="file" accept=".sntbackup,.zip,application/zip" hidden>
         <button id="fullscreenBtn" class="btn compact">Full screen</button>
         <button id="focusPdfBtn" class="btn compact">PDF focus</button>
+        <button id="deleteBookPageBtn" class="btn compact danger hidden" type="button">Delete added page</button>
         <button id="insertBookPageBtn" class="btn compact primary">+ Insert Page</button>
         <button id="permanentNoteBtn" class="btn compact">📌 Permanent Note</button>
         <button id="signOutBtn" class="btn compact">Sign out</button>
@@ -70,7 +71,7 @@
       </aside>
         <div class="pdf-controls">
           <button id="prevPage" class="btn compact">← Prev</button>
-          <label class="page-box">Page <input id="pageInput" type="number" min="1" value="1"> <span id="pageCount">/ 1</span></label>
+          <label class="page-box">Page <input id="pageInput" type="text" inputmode="decimal" value="1"> <span id="pageCount">/ 1</span></label>
           <button id="nextPage" class="btn compact">Next →</button>
           <span class="spacer"></span>
           <button id="zoomOut" class="btn compact">−</button>
