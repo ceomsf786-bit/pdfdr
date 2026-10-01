@@ -527,3 +527,12 @@ body[data-mode=student].continuous-book-ready .book-image-host .image-section{le
 
 /* Focus exit remains available when the top toolbar is hidden. */
 .exit-pdf-focus{position:fixed;right:12px;bottom:36px;z-index:10040;background:#fff;border:2px solid #147a5a;min-height:44px;box-shadow:0 2px 12px #0003}
+
+/* v3.37 added-page name beside Next; canvas no longer reserves a title card. */
+.book-page-name{width:clamp(110px,20vw,260px);min-width:0;max-width:260px;height:32px;padding:4px 8px;border:1px solid #cbd5dc;border-radius:7px;font:inherit;font-weight:600;background:#fff;flex:0 0 auto}
+.book-page-name[readonly]{border-color:transparent;background:transparent}
+body.continuous-book-ready .book-image-host{height:100%;min-height:0}
+body.continuous-book-ready .book-image-host .image-section{inset:8px 8px 8px 58px!important}
+body.continuous-book-ready.pdf-focus-mode .book-page{top:42px!important}
+body.continuous-book-ready.pdf-focus-mode .tool-rail-inline{top:42px!important}
+@media(max-width:650px){.book-page-name{width:130px}body.continuous-book-ready .book-image-host .image-section{left:48px!important}body[data-mode=student].continuous-book-ready .book-image-host .image-section{left:8px!important}}

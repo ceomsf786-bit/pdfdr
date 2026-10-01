@@ -30,6 +30,7 @@ async function run(teacher){
  vm.createContext(context);vm.runInContext(source+'\nwindow.test={pointerDown,pointerMove,pointerUp,uploadFiles};',context);
  await context.window.SNTImageBoards.open(1);
  assert(elements.has('imageBoardOverlay'),'lazy host initializes');
+ assert.equal(elements.get('imageBoardZoomReset').textContent,'100%');assert.equal(elements.get('imageBoardZoomWrap').style.transform,'scale(1)');
  boards.push({board_no:2,title:'Newly inserted',objects:[],placements:{}});
  if(teacher){context.window.test.pointerDown({clientX:30,clientY:30,pointerId:1});context.window.test.pointerMove({clientX:90,clientY:90});context.window.test.pointerUp();}
  await context.window.SNTImageBoards.open(2);
@@ -38,6 +39,7 @@ async function run(teacher){
  assert.equal(boards[1].objects.length,0,'drawing did not leak into next page');
  if(teacher){await context.window.test.uploadFiles([{name:'test.png',type:'image/png'}]);assert.equal(images[0].board_no,2,'image uploaded to correct board');}
  await context.window.SNTImageBoards.open(1);
+ assert.equal(elements.get('imageBoardZoomReset').textContent,'100%','returning page opens at 100%');
  if(teacher)assert.equal(boards[0].objects.length,1,'returning preserves original drawing');
  const results=await Promise.all([context.window.SNTImageBoards.open(2),context.window.SNTImageBoards.open(1)]);
  assert.equal(context.window.SNTImageBoards.boardNo(),1,'rapid requests finish in navigation order');

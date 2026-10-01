@@ -72,6 +72,23 @@ if(action==="pdf-source"&&req.method==="GET"){
   return new Response(upstream.body,{status:upstream.status,headers:h});
 }
 
+if(action==="rename-book-page"&&req.method==="POST"){
+  if(role!=="teacher")return json({error:"Only teachers can rename added pages."},403);
+  const pageId=String(url.searchParams.get("page")||"").trim();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId))return json({error:"Choose an added Note or Image/Drawing Page."},400);
+  const body=await req.json().catch(()=>({} as any));
+  const title=String(body?.title||"").trim().slice(0,100);
+  if(!title)return json({error:"Enter a page name."},400);
+  const {data:page,error:pageError}=await admin.from("snt_pdf_book_pages").select("id,kind").eq("document_id",doc.id).eq("id",pageId).maybeSingle();
+  if(pageError)throw pageError;
+  if(!page||!["note","image"].includes(page.kind))return json({error:"That added page was not found."},404);
+  const {data:updated,error}=await admin.from("snt_pdf_book_pages").update({title,updated_at:new Date().toISOString()}).eq("document_id",doc.id).eq("id",pageId).select("id").maybeSingle();
+  if(error)throw error;
+  if(!updated)return json({error:"That added page was not found."},404);
+  await touchRevision(doc);
+  return json({ok:true,page_id:pageId,title});
+}
+
 if(action==="delete-book-page"&&req.method==="POST"){
   if(role!=="teacher")return json({error:"Only teachers can delete added pages."},403);
   const pageId=String(url.searchParams.get("page")||"").trim();

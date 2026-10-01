@@ -17,6 +17,7 @@
         <button id="prevPage" class="btn compact">←</button>
         <label class="page-box"><input id="pageInput" type="text" inputmode="decimal" value="1"> <span id="pageCount">/ 1</span></label>
         <button id="nextPage" class="btn compact">→</button>
+          <input id="bookPageTitle" class="book-page-name hidden" type="text" maxlength="100" aria-label="Added page name" placeholder="Page name" readonly>
         <button id="zoomOut" class="btn compact">−</button>
         <button id="fitPage" class="btn compact">Fit</button>
         <button id="zoomIn" class="btn compact">+</button>
@@ -43,7 +44,6 @@
   <script type="module" src="v320-links.js"></script>
 
 <div id="bookPage" class="book-page hidden">
-  <div id="bookPageTitle" class="book-page-title">Inserted Page</div>
   <div id="bookNoteEditor" class="book-note-editor hidden"></div>
   <div id="bookImageHost" class="book-image-host hidden"></div>
 </div>

@@ -73,6 +73,7 @@
           <button id="prevPage" class="btn compact">← Prev</button>
           <label class="page-box">Page <input id="pageInput" type="text" inputmode="decimal" value="1"> <span id="pageCount">/ 1</span></label>
           <button id="nextPage" class="btn compact">Next →</button>
+          <input id="bookPageTitle" class="book-page-name hidden" type="text" maxlength="100" aria-label="Added page name" placeholder="Page name">
           <span class="spacer"></span>
           <button id="zoomOut" class="btn compact">−</button>
           <button id="fitPage" class="btn compact">Fit width</button>
@@ -118,7 +119,6 @@
 
 <button id="exitPdfFocusBtn" class="btn exit-pdf-focus hidden" type="button" aria-label="Exit PDF Focus">← Exit PDF Focus</button>
 <div id="bookPage" class="book-page hidden">
-  <div id="bookPageTitle" class="book-page-title" contenteditable="true">Inserted Page</div>
   <div id="bookNoteEditor" class="book-note-editor hidden"></div>
   <div id="bookImageHost" class="book-image-host hidden"></div>
 </div>
