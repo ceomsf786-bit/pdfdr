@@ -514,3 +514,16 @@ body.continuous-book-ready.pdf-focus-mode .teacher-workspace .pdf-area{inset:0!i
 body.continuous-book-ready.pdf-focus-mode .tool-rail-inline{top:0!important}
 body.continuous-book-ready.pdf-focus-mode .teacher-workspace .pdf-scroller{padding-left:60px!important}
 body.continuous-book-ready .tool-rail-inline{transform:none!important}
+
+/* Keep inserted pages inside the PDF workspace, below page navigation. */
+body.continuous-book-ready .book-page{top:42px!important}
+body.continuous-book-ready.pdf-focus-mode .book-page{top:0!important}
+body.continuous-book-ready .book-image-host .image-section{inset:62px 8px 8px 58px!important}
+body.continuous-book-ready .image-board-toolbar #imageBoardSelect,
+body.continuous-book-ready .image-board-toolbar #imageBoardAdd,
+body.continuous-book-ready .image-board-toolbar #imageBoardDelete,
+body.continuous-book-ready .image-board-toolbar #imageBoardTitle{display:none}
+body[data-mode=student].continuous-book-ready .book-image-host .image-section{left:8px!important}
+
+/* Focus exit remains available when the top toolbar is hidden. */
+.exit-pdf-focus{position:fixed;right:12px;bottom:36px;z-index:10040;background:#fff;border:2px solid #147a5a;min-height:44px;box-shadow:0 2px 12px #0003}

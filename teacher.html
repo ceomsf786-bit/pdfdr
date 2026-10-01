@@ -47,27 +47,6 @@
     <section id="error" class="error hidden"></section>
 
     <section id="workspace" class="workspace teacher-workspace hidden">
-      <aside id="toolRail" class="tool-rail" aria-label="Annotation tools">
-        <button class="tool active" data-tool="pen">✎<span>Pen</span></button>
-        <button class="tool" data-tool="highlighter">▰<span>Highlight</span></button>
-        <button class="tool" data-tool="eraser">⌫<span>Erase</span></button>
-        <button class="tool" data-tool="select">⌖<span>Select</span></button>
-        <button class="tool" data-tool="text">T<span>Text</span></button>
-        <button class="tool" data-tool="line">╱<span>Line</span></button>
-        <button class="tool" data-tool="arrow">➜<span>Arrow</span></button>
-        <button class="tool" data-tool="rect">□<span>Box</span></button>
-        <button class="tool" data-tool="ellipse">○<span>Circle</span></button>
-        <button class="tool" data-tool="hand">✋<span>Pan</span></button>
-        <div class="rail-divider"></div>
-        <label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label>
-        <label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label>
-        <label class="rail-label" title="Fill new boxes/circles and the selected shape"><span>Fill shape</span><input id="shapeFillToggle" type="checkbox"></label>
-        <label class="rail-label">Fill colour<input id="shapeFillColor" type="color" value="#fff59d"></label>
-        <button id="undoBtn" class="tool">↶<span>Undo</span></button>
-        <button id="redoBtn" class="tool">↷<span>Redo</span></button>
-        <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
-      </aside>
-
       <section class="pdf-area">
         <aside id="toolRail" class="tool-rail tool-rail-inline" aria-label="Annotation tools">
         <button class="tool active" data-tool="pen">✎<span>Pen</span></button>
@@ -136,6 +115,7 @@
   <script type="module" src="v315-board-tools.js"></script>
   <script type="module" src="v320-links.js"></script>
 
+<button id="exitPdfFocusBtn" class="btn exit-pdf-focus hidden" type="button" aria-label="Exit PDF Focus">← Exit PDF Focus</button>
 <div id="bookPage" class="book-page hidden">
   <div id="bookPageTitle" class="book-page-title" contenteditable="true">Inserted Page</div>
   <div id="bookNoteEditor" class="book-note-editor hidden"></div>

@@ -23,7 +23,27 @@ function strokeWidth(){return Number($('widthInput')?.value||4);}
 function fillEnabled(){return !!$('shapeFillToggle')?.checked;}
 function fillColor(){return $('shapeFillColor')?.value||strokeColor();}
 
-function targetSection(){return $('imageSection')||document.querySelector('.student-image-section');}
+function targetSection(){
+  let section=$('imageSection')||document.querySelector('.student-image-section');
+  if(!section&&$('bookImageHost')){
+    section=document.createElement('section');
+    section.id='imageSection';section.className='image-section';
+    $('bookImageHost').appendChild(section);
+  }
+  return section;
+}
+let initPromise=null, openQueue=Promise.resolve(), saveQueue=Promise.resolve();
+function ensureReady(){
+  if(!initPromise)initPromise=init().catch(e=>{initPromise=null;throw e;});
+  return initPromise;
+}
+async function flushSave(){
+  if(state.saveTimer){
+    clearTimeout(state.saveTimer);state.saveTimer=null;
+    await saveBoard();
+  }
+  await saveQueue;
+}
 function shellHtml(){return `<div class="image-board-shell"><div class="image-board-toolbar">
 <strong>${TEACHER?'Image Boards':'Teacher Image Board'}</strong><select id="imageBoardSelect"></select>
 ${TEACHER?'<button id="imageBoardAdd" class="btn compact" type="button">+ Board</button><button id="imageBoardDelete" class="btn compact danger-text" type="button">Delete board</button><input id="imageBoardTitle" type="text" maxlength="80" placeholder="Board title"><button id="imageBoardDraw" class="btn compact image-board-mode active" type="button">✎ Draw</button><button id="imageBoardArrange" class="btn compact image-board-mode" type="button">↔ Move images</button>':''}
@@ -61,35 +81,53 @@ function pointerUp(){if(!state.pointer)return;state.pointer=null;drawOverlay();s
 async function renderImages(){const canvas=$('imageBoardCanvas'),empty=$('imageBoardEmpty');if(!canvas)return;canvas.querySelectorAll('.image-board-tile').forEach(x=>x.remove());const b=currentBoard();canvas.style.width=`${Number(b?.canvas_width||1600)}px`;canvas.style.height=`${Number(b?.canvas_height||1000)}px`;if(empty)empty.style.display=state.images.length?'none':'grid';$('imageBoardCount').textContent=`${state.images.length} image${state.images.length===1?'':'s'}`;for(let i=0;i<state.images.length;i++){const img=state.images[i],p=placementFor(img,i);if(!state.placements[img.id])state.placements[img.id]=p;const tile=document.createElement('div');tile.className='image-board-tile';tile.dataset.id=img.id;Object.assign(tile.style,{left:`${p.x}px`,top:`${p.y}px`,width:`${p.w}px`,height:`${p.h}px`});tile.innerHTML=`<img alt="${esc(img.image_name||'Board image')}">${TEACHER?'<button class="image-board-delete-image" type="button" title="Delete image">×</button><span class="image-board-resize" title="Resize image"></span>':''}`;canvas.insertBefore(tile,$('imageBoardOverlay'));blobUrl(img).then(u=>{const el=tile.querySelector('img');if(el)el.src=u;}).catch(()=>{});if(TEACHER)bindTile(tile,img.id);}drawOverlay();}
 function selectTile(id){state.selectedImage=id;document.querySelectorAll('.image-board-tile').forEach(t=>t.classList.toggle('selected',t.dataset.id===id));}
 function boardPoint(e){const c=$('imageBoardCanvas').getBoundingClientRect();return{x:(e.clientX-c.left)/state.zoom,y:(e.clientY-c.top)/state.zoom};}
-function scheduleSave(){if(!TEACHER)return;clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveBoard().catch(e=>status(e.message)),220);}
-async function saveBoard(){const b=currentBoard();if(!b)return;await api('image-board-update',{board:state.boardNo},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:b.title,canvas_width:b.canvas_width,canvas_height:b.canvas_height,placements:state.placements,objects:state.objects})});broadcast();}
+function scheduleSave(){if(!TEACHER)return;clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>{state.saveTimer=null;saveBoard().catch(e=>status(e.message));},220);}
+function saveBoard(){
+ const b=currentBoard();if(!b)return Promise.resolve();
+ const boardNo=state.boardNo;
+ const snapshot=clone({title:b.title,canvas_width:b.canvas_width,canvas_height:b.canvas_height,placements:state.placements,objects:state.objects});
+ const result=saveQueue.catch(()=>{}).then(async()=>{
+   await api('image-board-update',{board:boardNo},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});
+   Object.assign(b,snapshot);broadcast(boardNo);
+ });
+ saveQueue=result;
+ return result;
+}
 function bindTile(tile,id){tile.addEventListener('pointerdown',e=>{if(state.mode!=='arrange'||e.target.closest('.image-board-delete-image'))return;e.preventDefault();selectTile(id);const p0=boardPoint(e),orig={...state.placements[id]},isResize=!!e.target.closest('.image-board-resize');const move=ev=>{const p=boardPoint(ev),dx=p.x-p0.x,dy=p.y-p0.y;if(isResize){const ratio=Math.max(.15,orig.w/Math.max(1,orig.h)),w=clamp(orig.w+dx,80,4000),h=clamp(w/ratio,60,3500);state.placements[id]={...orig,w,h};}else{const b=currentBoard(),w=orig.w,h=orig.h;state.placements[id]={...orig,x:clamp(orig.x+dx,0,Math.max(0,(b?.canvas_width||1600)-w)),y:clamp(orig.y+dy,0,Math.max(0,(b?.canvas_height||1000)-h))};}const n=state.placements[id];Object.assign(tile.style,{left:`${n.x}px`,top:`${n.y}px`,width:`${n.w}px`,height:`${n.h}px`});};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);scheduleSave();};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up,{once:true});});tile.querySelector('.image-board-delete-image')?.addEventListener('click',async e=>{e.stopPropagation();if(!confirm('Delete this image?'))return;await api('delete-image',{image:id},{method:'POST'});delete state.placements[id];await saveBoard();await loadImages();});}
 async function loadBoards(preferred){const d=await api('image-boards');state.docId=d.document_id||state.docId;state.boards=d.boards||[];if(preferred)state.boardNo=Number(preferred);else state.boardNo=Number(d.live_image_board_no||state.boardNo||1);renderBoardSelect();await loadImages();}
 async function loadImages(){cleanupUrls();const d=await api('images',{board:state.boardNo});state.images=d.images||[];const b=currentBoard();state.placements=(b?.placements&&typeof b.placements==='object')?clone(b.placements):{};state.objects=Array.isArray(b?.objects)?clone(b.objects):[];state.undo=[];state.redo=[];state.selectedObject=null;await renderImages();}
-async function switchBoard(no,announce=true){state.boardNo=Number(no)||1;renderBoardSelect();await loadImages();if(TEACHER&&announce){await api('image-board-live',{board:state.boardNo},{method:'POST'});broadcast();}}
+async function switchBoard(no,announce=true){await flushSave();state.boardNo=Number(no)||1;renderBoardSelect();await loadImages();if(TEACHER&&announce){await api('image-board-live',{board:state.boardNo},{method:'POST'});broadcast();}}
 async function addBoard(){const title=prompt('Name this image board:',`Image Board ${state.boards.length+1}`);if(title===null)return;const d=await api('image-board-create',{}, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title.trim()||`Image Board ${state.boards.length+1}`})});await loadBoards(d.board?.board_no);await api('image-board-live',{board:state.boardNo},{method:'POST'});broadcast();}
 async function deleteBoard(){if(state.boards.length<=1)return alert('Keep at least one image board.');const b=currentBoard();if(!confirm(`Delete “${b?.title||'this image board'}” and its images/drawings?`))return;await api('image-board-delete',{board:state.boardNo},{method:'POST'});await loadBoards();broadcast();}
 async function uploadFiles(files){if(!files?.length)return;for(let i=0;i<files.length;i++){const f=files[i];status(`Uploading image ${i+1}/${files.length}…`);const r=await fetch(apiUrl('upload-image',{board:state.boardNo,imageboard:1}),{method:'POST',headers:await authHeaders({'Content-Type':f.type||'image/png','x-file-name':encodeURIComponent(f.name||`Image ${i+1}`)}),body:f});const d=await r.json().catch(()=>({}));if(!r.ok||!d.image?.id)throw new Error(d.error||'Image upload failed.');const idx=state.images.length+i;state.placements[d.image.id]={x:40+(idx%3)*360,y:40+Math.floor(idx/3)*280,w:320,h:220};}await saveBoard();await loadImages();status('Images uploaded');}
 function bindPan(){const st=$('imageBoardStage');st?.addEventListener('pointerdown',e=>{if(state.mode!=='pan'||e.target.closest('.image-board-toolbar'))return;e.preventDefault();st.classList.add('dragging');const sx=e.clientX,sy=e.clientY,l=st.scrollLeft,t=st.scrollTop;const move=ev=>{st.scrollLeft=l-(ev.clientX-sx);st.scrollTop=t-(ev.clientY-sy);};const up=()=>{st.classList.remove('dragging');window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up,{once:true});});}
-function broadcast(){if(!TEACHER||!state.channel)return;state.channel.send({type:'broadcast',event:'image-board',payload:{doc_id:state.docId,board_no:state.boardNo,at:Date.now()}}).catch(()=>{});}
+function broadcast(boardNo=state.boardNo){if(!TEACHER||!state.channel)return;state.channel.send({type:'broadcast',event:'image-board',payload:{doc_id:state.docId,board_no:boardNo,at:Date.now()}}).catch(()=>{});}
 async function setupChannel(){let secret=state.studentToken;if(TEACHER){const {data}=await supabase.from('snt_pdf_documents').select('student_token').eq('id',state.docId).maybeSingle();secret=data?.student_token||'';}if(!secret||!state.docId)return;const topic=`snt-pdf-live:${state.docId}:${String(secret).slice(0,24)}`;state.channel=supabase.channel(topic,{config:{broadcast:{self:false}}});state.channel.on('broadcast',{event:'image-board'},({payload})=>{if(TEACHER||payload?.doc_id!==state.docId)return;loadBoards(payload.board_no).catch(()=>{});});state.channel.subscribe();}
 function applyFillToSelected(){if(!TEACHER||!state.selectedObject)return;const o=state.objects.find(x=>x.id===state.selectedObject);if(!o||!['rect','ellipse'].includes(o.type))return;remember();o.fill=fillEnabled();o.fillColor=fillColor();o.fillOpacity=.22;drawOverlay();scheduleSave();}
 
 async function init(){const section=targetSection();if(!section)return;state.studentToken=studentToken();state.docId=TEACHER?teacherDocId():'';section.id='imageSection';section.innerHTML=shellHtml();setZoom(state.zoom);setMode(TEACHER?'draw':'view');bindPan();$('imageBoardSelect').addEventListener('change',e=>switchBoard(e.target.value));$('imageBoardZoomOut').addEventListener('click',()=>setZoom(state.zoom-.1));$('imageBoardZoomReset').addEventListener('click',()=>setZoom(.55));$('imageBoardZoomIn').addEventListener('click',()=>setZoom(state.zoom+.1));if(TEACHER){$('imageBoardDraw').addEventListener('click',()=>setMode('draw'));$('imageBoardArrange').addEventListener('click',()=>setMode('arrange'));$('imageBoardPan').addEventListener('click',()=>setMode(state.mode==='pan'?'draw':'pan'));$('imageBoardAdd').addEventListener('click',()=>addBoard().catch(e=>status(e.message)));$('imageBoardDelete').addEventListener('click',()=>deleteBoard().catch(e=>status(e.message)));$('imageBoardUpload').addEventListener('click',()=>$('imageBoardFile').click());$('imageBoardFile').addEventListener('change',e=>{uploadFiles([...e.target.files]).catch(err=>{status(err.message);alert(err.message);}).finally(()=>e.target.value='');});$('imageBoardTitle').addEventListener('change',async e=>{const b=currentBoard();if(!b)return;b.title=e.target.value.trim()||`Image Board ${b.board_no}`;await saveBoard();renderBoardSelect();});$('imageBoardUndo').addEventListener('click',()=>history(state.undo,state.redo));$('imageBoardRedo').addEventListener('click',()=>history(state.redo,state.undo));$('shapeFillToggle')?.addEventListener('change',applyFillToSelected);$('shapeFillColor')?.addEventListener('input',applyFillToSelected);document.querySelectorAll('#toolRail [data-tool]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.tool==='hand')setMode('pan');else if(state.mode!=='arrange')setMode('draw');}));const c=$('imageBoardOverlay');c.addEventListener('pointerdown',pointerDown);c.addEventListener('pointermove',pointerMove);c.addEventListener('pointerup',pointerUp);c.addEventListener('pointercancel',pointerUp);}
-try{if(!TEACHER){const d=await api('image-boards');state.docId=d.document_id;state.boards=d.boards||[];state.boardNo=Number(d.live_image_board_no||1);renderBoardSelect();await loadImages();}else{for(let i=0;i<20&&!state.docId;i++){await new Promise(r=>setTimeout(r,250));state.docId=teacherDocId();}await loadBoards();}await setupChannel();status('Image boards ready');}catch(e){status('Image boards: '+e.message);}}
+try{if(!TEACHER){const d=await api('image-boards');state.docId=d.document_id;state.boards=d.boards||[];state.boardNo=Number(d.live_image_board_no||1);renderBoardSelect();await loadImages();}else{for(let i=0;i<20&&!state.docId;i++){await new Promise(r=>setTimeout(r,250));state.docId=teacherDocId();}await loadBoards();}await setupChannel();status('Image boards ready');}catch(e){status('Image boards: '+e.message);throw e;}}
 
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,0),{once:true});else setTimeout(init,0);
-
-/* v3.34 continuous-book bridge: the book page owns which legacy image-board record is active. */
+/* The continuous book creates the image host lazily, after teacher sign-in. */
 window.SNTImageBoards={
-  async open(boardNo){
-    const n=Number(boardNo)||1;
-    if(!state.docId)state.docId=TEACHER?teacherDocId():state.docId;
-    if(!state.boards.length)await loadBoards(n);else await switchBoard(n,false);
-    setMode(TEACHER?'draw':'view');
-    const section=targetSection();if(section)section.classList.remove('hidden');
-    requestAnimationFrame(()=>{resizeCanvas();renderImages().catch(()=>{});});
+  open(boardNo){
+    const run=async()=>{
+      await ensureReady();
+      await flushSave();
+      const n=Number(boardNo);
+      if(!Number.isInteger(n)||n<1)throw new Error('This image page has no drawing board.');
+      // Insert Page creates its board separately: refresh before selecting it.
+      await loadBoards(n);
+      if(!state.boards.some(b=>Number(b.board_no)===n))throw new Error('Drawing page could not be found.');
+      setMode(TEACHER?'draw':'view');
+      targetSection()?.classList.remove('hidden');
+      syncOverlay();drawOverlay();
+    };
+    const result=openQueue.then(run);
+    openQueue=result.catch(()=>{});
+    return result;
   },
-  async reload(){await loadBoards(state.boardNo);},
+  async flush(){await openQueue;await flushSave();},
+  async reload(){await ensureReady();await flushSave();await loadBoards(state.boardNo);},
   boardNo(){return state.boardNo;}
 };
