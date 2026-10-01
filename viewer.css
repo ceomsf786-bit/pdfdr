@@ -543,3 +543,18 @@ body[data-mode=student] #workspace.student-workspace>.pdf-area{position:absolute
 body[data-mode=student] #workspace .book-page{top:0!important}
 body[data-mode=student] #workspace.hidden{display:none!important}
 body[data-mode=student] #workspace.pdf-hidden>.pdf-area{display:none!important}
+
+/* v3.39 document-style permanent notes, including pasted and merged tables. */
+.permanent-note-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 12px;background:#f3f5f7;border-bottom:1px solid #d7dfe7;flex:0 0 auto}
+.permanent-note-toolbar button,.permanent-note-toolbar select{font:inherit;font-size:13px;border:1px solid #cbd5dc;border-radius:5px;background:white;min-height:30px;padding:4px 7px}
+.permanent-note-toolbar input[type=color]{width:32px;height:30px;padding:2px;border:1px solid #cbd5dc;background:white}
+.permanent-note-toolbar button:hover{background:#e8f6f1}
+#permanentSaveStatus{font-size:12px;color:#526477;margin-left:auto}
+.permanent-note-tip{font-size:12px;color:#526477;padding:6px 12px;border-bottom:1px solid #e5e7eb}
+.permanent-note-editor{min-height:0;overflow:auto;overscroll-behavior:contain;overflow-wrap:break-word;background:#fff}
+.permanent-note-editor table,.book-note-editor table,.board-text table{border-collapse:collapse;max-width:100%;width:100%;margin:12px 0;background:#fff}
+.permanent-note-editor td,.permanent-note-editor th,.book-note-editor td,.book-note-editor th,.board-text td,.board-text th{border:1px solid #9aa5b1;padding:8px 10px;min-width:55px;vertical-align:top;overflow-wrap:break-word}
+.permanent-note-editor th,.book-note-editor th{background:#eef2f5;font-weight:700}
+.permanent-note-editor p{margin:0 0 10px}.permanent-note-editor h1,.permanent-note-editor h2,.permanent-note-editor h3{line-height:1.25;margin:18px 0 10px}
+.permanent-note-editor a{color:#147a5a;text-decoration:underline}
+@media(max-width:650px){.permanent-note-head input{min-width:0;font-size:16px}.permanent-note-toolbar{gap:4px;padding:6px}.permanent-note-toolbar button,.permanent-note-toolbar select{font-size:12px}.permanent-note-editor{padding:14px}.permanent-note-editor td,.permanent-note-editor th{padding:6px;min-width:45px;font-size:14px}}

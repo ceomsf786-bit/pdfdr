@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "scripts": { "test:permanent": "node permanent-document.cjs" },
+  "devDependencies": { "jsdom": "30.1.1" }
+}
