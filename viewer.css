@@ -536,3 +536,10 @@ body.continuous-book-ready .book-image-host .image-section{inset:8px 8px 8px 58p
 body.continuous-book-ready.pdf-focus-mode .book-page{top:42px!important}
 body.continuous-book-ready.pdf-focus-mode .tool-rail-inline{top:42px!important}
 @media(max-width:650px){.book-page-name{width:130px}body.continuous-book-ready .book-image-host .image-section{left:48px!important}body[data-mode=student].continuous-book-ready .book-image-host .image-section{left:8px!important}}
+
+/* v3.38 student pages fill the workspace even before book metadata loads. */
+body[data-mode=student] #workspace.student-workspace{display:block!important;position:relative!important;flex:1 1 0!important;height:auto!important;min-height:0!important;overflow:hidden!important}
+body[data-mode=student] #workspace.student-workspace>.pdf-area{position:absolute!important;inset:0!important;width:100%!important;height:100%!important}
+body[data-mode=student] #workspace .book-page{top:0!important}
+body[data-mode=student] #workspace.hidden{display:none!important}
+body[data-mode=student] #workspace.pdf-hidden>.pdf-area{display:none!important}

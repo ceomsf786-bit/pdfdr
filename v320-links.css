@@ -65,7 +65,7 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
      Zoom, Notes and Links stay visible on row 2 — no sideways hunting. */
   body[data-mode=student] .student-topbar .top-actions{
     display:grid!important;
-    grid-template-columns:38px minmax(82px,1fr) 38px 54px;
+    grid-template-columns:32px 32px minmax(90px,1fr) 46px;
     grid-template-rows:auto auto;
     width:100%;
     max-width:none!important;
@@ -77,10 +77,10 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
     padding-bottom:0;
   }
   body[data-mode=student] .student-topbar #prevPage{grid-column:1;grid-row:1}
-  body[data-mode=student] .student-topbar .page-box{grid-column:2;grid-row:1;min-width:0;justify-content:center}
+  body[data-mode=student] .student-topbar .page-box{grid-column:2 / 4;grid-row:1;min-width:0;justify-content:center}
   body[data-mode=student] .student-topbar #pageInput{width:48px}
-  body[data-mode=student] .student-topbar #nextPage{grid-column:3;grid-row:1}
-  body[data-mode=student] .student-topbar #fitPage{grid-column:4;grid-row:1}
+  body[data-mode=student] .student-topbar #nextPage{grid-column:4;grid-row:1}
+  body[data-mode=student] .student-topbar #fitPage{grid-column:4;grid-row:2}
   body[data-mode=student] .student-topbar #zoomOut{grid-column:1;grid-row:2}
   body[data-mode=student] .student-topbar #zoomIn{grid-column:2;grid-row:2;justify-self:start}
   body[data-mode=student] .student-topbar #togglePdf{
@@ -95,7 +95,7 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
   }
   body[data-mode=student] .student-topbar .snt-links-btn{
     grid-column:4;
-    grid-row:2;
+    grid-row:3;
     justify-self:stretch;
   }
   body[data-mode=student] .student-topbar .top-actions .btn{min-width:0!important}
@@ -115,4 +115,10 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
   .snt-student-link-actions{width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding-bottom:1px}
   .snt-student-link-actions .btn{white-space:nowrap;min-width:max-content}
   .snt-student-link-fallback{font-size:.66rem;padding:4px 6px}
+}
+
+@media(max-width:650px){
+ body[data-mode=student] .student-topbar #permanentNoteBtn{grid-column:1 / 4;grid-row:3;justify-self:start;font-size:13px;min-height:28px}
+ body[data-mode=student] .student-topbar #bookPageTitle{grid-column:1 / -1;grid-row:4;max-width:100%;width:100%}
+ body[data-mode=student] .student-topbar .top-actions .btn{min-height:28px;padding:3px 5px;font-size:13px}
 }

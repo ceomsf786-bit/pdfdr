@@ -4,13 +4,14 @@ const pageId='11111111-1111-4111-8111-111111111111',foreignId='22222222-2222-422
 const doc={id:'doc',student_token:'student',student_link_enabled:true,revision:1,live_book_key:'insert:'+pageId,live_inserted_page_id:pageId};
 let pages=[{id:pageId,document_id:'doc',kind:'note',anchor_pdf_page:4},{id:foreignId,document_id:'other',kind:'image',anchor_pdf_page:1}];const touched=[];
 function query(table){let filters=[],operation='select',patch;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},update(v){operation='update';patch=v;return q},delete(){operation='delete';return q},
- async maybeSingle(){return execute()},then(resolve,reject){return Promise.resolve(execute()).then(resolve,reject)}};
+ async maybeSingle(){return execute()},async single(){return execute()},then(resolve,reject){return Promise.resolve(execute()).then(resolve,reject)}};
  function execute(){touched.push(table+':'+operation);const rows=table==='snt_pdf_documents'?[doc]:pages;const row=rows.find(x=>filters.every(([k,v])=>x[k]===v));if(operation==='delete'&&row)pages=pages.filter(x=>x!==row);if(operation==='update'&&row)Object.assign(row,patch);return {data:row?structuredClone(row):null,error:null};}return q;}
 let handler;const context={console,URL,Request,Response,Headers,Blob,Date,Math,Number,String,JSON,Error,crypto:require('crypto').webcrypto,Uint8Array,TextEncoder,fetch:()=>{throw Error('Unexpected network request')},Deno:{env:{get:()=> 'test'},serve:fn=>handler=fn},createClient:()=>({from:query,auth:{getUser:async token=>({data:{user:token==='teacher'?{id:'teacher'}:null},error:null})}})};
 vm.createContext(context);vm.runInContext(stripTypeScriptTypes(raw),context);
 async function call(page,headers,action='delete-book-page',body){const r=await handler(new Request('https://test.invalid/api?action='+action+'&doc=doc&page='+page,{method:'POST',headers,body:body?JSON.stringify(body):undefined}));return {status:r.status,data:await r.json()};}
 (async()=>{
  const teacher={authorization:'Bearer teacher'};
+ for(const action of ['init','sync']){const r=await handler(new Request('https://test.invalid/api?action='+action,{headers:{'x-viewer-token':'student'}}));assert.equal(r.status,200);const json=await r.json(),data=action==='init'?json.document:json;assert.equal(data.live_book_key,'insert:'+pageId);assert.equal(data.live_inserted_page_id,pageId);}
  assert.equal((await call(pageId,{'x-viewer-token':'student'},'rename-book-page',{title:'New'})).status,403);
  assert.equal((await call(foreignId,teacher,'rename-book-page',{title:'New'})).status,404);
  assert.equal((await call(pageId,teacher,'rename-book-page',{title:'   '})).status,400);

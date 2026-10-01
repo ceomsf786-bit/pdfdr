@@ -72,6 +72,7 @@ function refreshStudentHookUi(){
   if(els.prevPage) els.prevPage.disabled=following||state.pageNo<=1;
   if(els.nextPage) els.nextPage.disabled=following||state.pageNo>=(state.pdf?.numPages||1);
   if(els.pageInput) els.pageInput.disabled=following;
+  if(state.bookSequence.length)syncBookCounter();
 }
 function clamp01(v, fallback=.5){
   const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):fallback;
@@ -93,6 +94,8 @@ function captureTeacherView(){
   return {
     doc_id:state.doc.id,
     live_page:state.pageNo,
+    live_book_key:bookItem()?.key||'pdf:'+state.pageNo,
+    live_inserted_page_id:bookItem()?.kind==='pdf'?null:bookItem()?.id||null,
     live_center_x:centerX,
     live_center_y:centerY,
     live_scroll_ratio:scrollRatio,
@@ -137,9 +140,8 @@ async function drainRemoteTeacherView(){
       }
       refreshStudentHookUi();
       if(!state.studentHooked||!state.pdf)continue;
-      const target=Math.max(1,Math.min(state.pdf.numPages,Number(p.live_page||1)));
-      if(target!==state.pageNo)await renderPage(target,true);
-      requestAnimationFrame(()=>requestAnimationFrame(()=>applyTeacherCenter()));
+      await followBookPage(p.live_book_key,p.live_page);
+      if(bookItem()?.kind==='pdf')requestAnimationFrame(()=>requestAnimationFrame(()=>applyTeacherCenter()));
     }
   }finally{state.remoteViewBusy=false;}
 }
@@ -155,7 +157,8 @@ async function setupLiveChannel(){
   ch.on('broadcast',{event:'content-refresh'},({payload})=>{
     if(TEACHER||payload?.doc_id!==state.doc?.id)return;
     state.lastRealtimeAt=Date.now();
-    if(payload.kind==='images')loadImages(true).catch(()=>{});
+    if(payload.kind==='book')refreshBookSequence().catch(()=>{});
+    else if(payload.kind==='images')loadImages(true).catch(()=>{});
     else loadStudentBoards().catch(()=>{});
   });
   ch.on('broadcast',{event:'student-ready'},()=>{
@@ -934,7 +937,7 @@ async function deleteCurrentImage(){
 async function pushLiveState(){
   if(!TEACHER||!state.doc||!state.pdf)return;
   const view=captureTeacherView();if(!view)return;
-  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:view.live_scroll_ratio,live_center_x:view.live_center_x,live_center_y:view.live_center_y,live_zoom:state.scale,student_hooked:state.studentHooked,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
+  const {error}=await supabase.from('snt_pdf_documents').update({live_page:state.pageNo,live_book_key:view.live_book_key,live_inserted_page_id:view.live_inserted_page_id,live_board_no:state.boardNo,live_image_id:state.liveImageId||null,live_scroll_ratio:view.live_scroll_ratio,live_center_x:view.live_center_x,live_center_y:view.live_center_y,live_zoom:state.scale,student_hooked:state.studentHooked,teacher_present_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',state.doc.id);if(error)setStatus(error.message);
 }
 async function releaseTeacherControl({keepalive=false,silent=false}={}){
   if(!TEACHER||!state.doc||state.teacherReleasing)return;
@@ -989,9 +992,8 @@ async function pollStudentSync(){
 
     if(following){
       if(!realtimeEstablished){
-        const targetPage=Math.max(1,Number(s.live_page||1));
-        if(targetPage!==state.pageNo)await renderPage(targetPage,true);
-        requestAnimationFrame(()=>applyTeacherCenter());
+        await followBookPage(s.live_book_key,s.live_page);
+        if(bookItem()?.kind==='pdf')requestAnimationFrame(()=>applyTeacherCenter());
       }
       if(revisionChanged){
         await loadStudentPageData();
@@ -1002,7 +1004,7 @@ async function pollStudentSync(){
       await loadStudentBoards();
     }
 
-    if(revisionChanged&&state.bookSequence.length)await refreshBookSequence();
+    if(state.bookSequence.length&&(revisionChanged||Date.now()-(state.bookLastFetched||0)>5000))await refreshBookSequence();
     if(revisionChanged&&!realtimeEstablished)await loadImages(true);
     state.revision=newRevision;
     if(previousLiveImage!==state.liveImageId&&state.liveImageId){ selectGalleryImage(state.liveImageId,false); }
@@ -1386,9 +1388,10 @@ async function bootTeacherAfterLogin(){
 async function bootStudent(){
   bindCommon();state.token=new URLSearchParams(location.hash.replace(/^#/,'')).get('t');if(!state.token)return showError('This textbook link is missing or incomplete.');
   try{
-    const init=await api('init');state.doc=init.document;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.studentHooked=init.document.student_hooked!==false;state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=state.liveBoardNo;els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
+    const init=await api('init');state.doc=init.document;state.liveBookKey=init.document.live_book_key;state.revision=Number(init.document.revision||0);state.teacherOnline=!!init.teacher_online;state.studentHooked=init.document.student_hooked!==false;state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.liveImageId=init.document.live_image_id||null;state.liveScrollRatio=Math.max(0,Math.min(1,Number(init.document.live_scroll_ratio||0)));state.liveCenterX=Math.max(0,Math.min(1,Number(init.document.live_center_x??.5)));state.liveCenterY=Math.max(0,Math.min(1,Number(init.document.live_center_y??.5)));state.liveZoom=Number(init.document.live_zoom||1);state.pageNo=Math.max(1,Number(init.document.live_page||1));state.boardNo=state.liveBoardNo;els.docTitle.textContent=init.document.title;els.contextText.textContent='Teacher annotations • view only';restoreStudentState();state.boardOpen=true;
     if(studentFollowActive()){state.pageNo=Math.max(1,Number(init.document.live_page||1));state.liveBoardNo=Math.max(1,Number(init.document.live_board_no||1));state.boardNo=state.liveBoardNo;}
     setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setGlobalNotesOpen(state.globalNotesOpen);setClassNotesOpen(state.classNotesOpen);setImagesOpen(state.imagesOpen);await loadPdf();await loadImages(true);await setupLiveChannel();els.loading.classList.add('hidden');els.workspace.classList.remove('hidden');setBoardOpen(state.boardOpen);setPdfOpen(state.pdfOpen);setGlobalNotesOpen(state.globalNotesOpen);setClassNotesOpen(state.classNotesOpen);setImagesOpen(state.imagesOpen);refreshStudentHookUi();
+    await startContinuousBook();
     state.pollTimer=setInterval(pollStudentSync,Number(CONFIG.STUDENT_POLL_MS||900));await pollStudentSync();
   }catch(e){showError(e.message);}
 }
@@ -1416,8 +1419,8 @@ function buildBookSequence(){
 async function loadBookPages(){
  const args=TEACHER?{p_document_id:state.doc?.id||null,p_student_token:null}:{p_document_id:null,p_student_token:bookToken()};
  const {data,error}=await supabase.rpc('snt_pdf_book_list',args);if(error)throw error;
- state.bookPages=Array.isArray(data?.pages)?data.pages:[];state.permanentNote=data?.permanent||{};
- buildBookSequence();
+ state.bookPages=Array.isArray(data?.pages)?data.pages:[];state.permanentNote=data?.permanent||{};if(!TEACHER&&data?.live_book_key)state.liveBookKey=data.live_book_key;
+ buildBookSequence();state.bookLastFetched=Date.now();
 }
 function bookPageIndex(label){return state.bookSequence.findIndex(x=>x.displayNumber===String(label).trim());}
 function bookItem(){return state.bookSequence[state.bookIndex]||state.bookSequence[0]||null;}
@@ -1435,7 +1438,7 @@ async function refreshBookSequence(){
  const current=bookItem(),key=current?.key;
  await loadBookPages();
  const idx=state.bookSequence.findIndex(x=>x.key===key);
- if(idx>=0){state.bookIndex=idx;syncBookCounter();}
+ if(idx>=0){state.bookIndex=idx;syncBookCounter();if(!TEACHER&&bookItem()?.kind==='note')renderStoredBoardContent(bookEls.editor,bookItem().text_content||'','No notes on this page yet.');}
  else {const anchor=current?.pdfPage||current?.anchor_pdf_page||state.pageNo;await showBookIndex(bookPageIndex(String(anchor)));}
 }
 async function showBookIndex(index){
@@ -1456,6 +1459,7 @@ async function showBookIndex(index){
   if(TEACHER){bookEls.editor.contentEditable='true';setBookHtml(bookEls.editor,item.text_content||'');}
   else{bookEls.editor.contentEditable='false';renderStoredBoardContent(bookEls.editor,item.text_content||'','No notes on this page yet.');}
  }
+ if(TEACHER){broadcastTeacherView();pushLiveState().catch(()=>{});}
  if(item.kind==='image'){
   const section=$('imageSection');if(section&&bookEls.imageHost&&section.parentElement!==bookEls.imageHost){bookEls.imageHost.replaceChildren(section);section.classList.remove('hidden');}
   if(!window.SNTImageBoards?.open)await import(new URL('./v315-imageboards-loader.js',location.href).href);
@@ -1463,13 +1467,22 @@ async function showBookIndex(index){
   if(TEACHER) document.body.classList.add('book-image-active');
  }
 }
+async function followBookPage(key,page){
+ const targetKey=key||'pdf:'+Math.max(1,Number(page||1));
+ state.liveBookKey=targetKey;
+ if(!state.bookSequence.length)await startContinuousBook();
+ let idx=state.bookSequence.findIndex(x=>x.key===targetKey);
+ if(idx<0){await refreshBookSequence();idx=state.bookSequence.findIndex(x=>x.key===targetKey);}
+ if(idx<0)idx=bookPageIndex(String(Math.max(1,Number(page||1))));
+ if(idx>=0&&bookItem()?.key!==state.bookSequence[idx].key)await showBookIndex(idx);
+}
 function setBookHtml(el,raw){if(!el)return;const rich=storedBoardHtml(raw);if(rich!==null)el.innerHTML=rich;else el.textContent=String(raw||'');}
 function bookStorage(){if(!bookEls.editor)return '';const html=sanitizeRichHtml(bookEls.editor.innerHTML);const tmp=document.createElement('div');tmp.innerHTML=html;return (tmp.innerText||tmp.textContent||'').trim()?RICH_MARKER+html:'';}
 async function saveCurrentBookNote(){
  if(!TEACHER)return;const item=bookItem();if(item?.kind!=='note')return;
  const title=(bookEls.title?.value||item.title||'Note Page').trim().slice(0,100)||'Note Page';
  const text=bookStorage();const {error}=await supabase.rpc('snt_pdf_book_save_note',{p_document_id:state.doc.id,p_page_id:item.id,p_title:title,p_text_content:text});if(error)throw error;
- item.title=title;item.text_content=text;setStatus('Note page saved');
+ item.title=title;item.text_content=text;broadcastContentRefresh('book');setStatus('Note page saved');
 }
 function scheduleBookSave(){if(!TEACHER)return;clearTimeout(state.bookSaveTimer);state.bookSaveTimer=setTimeout(()=>saveCurrentBookNote().catch(e=>setStatus(e.message)),500);}
 async function insertBookPage(){
@@ -1505,7 +1518,8 @@ async function deleteBookPage(){
   setStatus('Added page deleted');
  }finally{if(button)button.disabled=false;}
 }
-function openPermanent(){
+async function openPermanent(){
+ if(state.doc)await loadBookPages();
  const p=state.permanentNote||{};if(bookEls.permTitle)bookEls.permTitle.value=p.title||'Permanent Note';
  if(bookEls.permEditor){if(TEACHER){bookEls.permEditor.contentEditable='true';setBookHtml(bookEls.permEditor,p.text_content||'');}else{bookEls.permEditor.contentEditable='false';renderStoredBoardContent(bookEls.permEditor,p.text_content||'','No permanent note yet.');}}
  bookEls.modal?.classList.remove('hidden');
@@ -1516,16 +1530,18 @@ async function closePermanent(save=true){
   const text=(tmp.innerText||tmp.textContent||'').trim()?RICH_MARKER+html:'';
   const title=(bookEls.permTitle?.value||'Permanent Note').trim()||'Permanent Note';
   const {error}=await supabase.rpc('snt_pdf_book_save_permanent',{p_document_id:state.doc.id,p_title:title,p_text_content:text});if(error)throw error;
-  state.permanentNote={...(state.permanentNote||{}),title,text_content:text};
+  state.permanentNote={...(state.permanentNote||{}),title,text_content:text};broadcastContentRefresh('book');
  }
  bookEls.modal?.classList.add('hidden');
 }
+let bookUiBound=false,bookStarting=null,bookReadyDoc=null;
 function bindBookUi(){
+ if(bookUiBound)return;bookUiBound=true;
  const pdfArea=els.workspace?.querySelector('.pdf-area');
  if(pdfArea&&bookEls.page)pdfArea.appendChild(bookEls.page);
  $('deleteBookPageBtn')?.addEventListener('click',()=>deleteBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.insert?.addEventListener('click',()=>insertBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
- bookEls.permanent?.addEventListener('click',openPermanent);
+ bookEls.permanent?.addEventListener('click',()=>openPermanent().catch(e=>{setStatus(e.message);alert(e.message);}));
  $('permanentNoteClose')?.addEventListener('click',()=>closePermanent(true).catch(e=>alert(e.message)));
  bookEls.editor?.addEventListener('input',scheduleBookSave);
  bookEls.title?.addEventListener('change',()=>saveBookPageTitle().catch(e=>{setStatus(e.message);alert(e.message);}));
@@ -1538,15 +1554,22 @@ function bindBookUi(){
  els.pageInput?.addEventListener('change',()=>{if(studentFollowActive()){syncBookCounter();return;}const idx=bookPageIndex(els.pageInput.value);if(idx>=0)showBookIndex(idx).catch(e=>setStatus(e.message));else{syncBookCounter();setStatus('Enter an existing page, for example 4 or 4.1.');}});
 }
 async function startContinuousBook(){
- for(let i=0;i<80&&(!state.pdf||!state.doc);i++)await new Promise(r=>setTimeout(r,100));
  if(!state.pdf||!state.doc)return;
- try{await loadBookPages();bindBookUi();const idx=state.bookSequence.findIndex(x=>x.kind==='pdf'&&x.pdfPage===state.pageNo);await showBookIndex(idx>=0?idx:0);document.body.classList.add('continuous-book-ready');}
- catch(e){console.error('Continuous book:',e);setStatus('Book pages: '+e.message);}
+ if(bookReadyDoc===state.doc.id)return;
+ if(bookStarting)return bookStarting;
+ bindBookUi();
+ bookStarting=(async()=>{
+  try{
+   await loadBookPages();
+   const key=!TEACHER&&studentFollowActive()?state.liveBookKey:'pdf:'+state.pageNo;
+   const idx=state.bookSequence.findIndex(x=>x.key===key);
+   await showBookIndex(idx>=0?idx:bookPageIndex(String(state.pageNo)));
+   document.body.classList.add('continuous-book-ready');bookReadyDoc=state.doc.id;
+  }catch(e){console.error('Continuous book:',e);setStatus('Book pages: '+e.message);}
+ })();
+ try{await bookStarting;}finally{bookStarting=null;}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startContinuousBook,100),{once:true});else setTimeout(startContinuousBook,100);
-/* Documents can take longer than the original 8s wait on Drive/Android. Start the book layer
-   immediately after the document itself opens as a reliable second path. */
+/* Initialize only after the PDF completes, including slow mobile downloads. */
 const __sntOpenTeacherDocument=openTeacherDocument;
 openTeacherDocument=async function(doc){await __sntOpenTeacherDocument(doc);await startContinuousBook();};
-const __sntBootStudent=bootStudent;
-bootStudent=async function(){await __sntBootStudent();await startContinuousBook();};
+
