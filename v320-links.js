@@ -14,8 +14,16 @@ const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_PUBLISHABLE_K
 const $ = id => document.getElementById(id);
 
 function currentDocId(){return TEACHER?new URLSearchParams(location.search).get('id'):null;}
-function currentStudentToken(){return TEACHER?null:new URLSearchParams(location.hash.replace(/^#/,'')).get('t');}
+function currentStudentToken(){return TEACHER?null:new URLSearchParams(location.hash.replace(/^#/,'' )).get('t');}
 function safeHref(raw){try{const u=new URL(raw);return ['http:','https:'].includes(u.protocol)?u.href:null}catch{return null}}
+function isHomeworkSubmissionLink(raw){
+  const href=safeHref(raw);
+  if(!href)return false;
+  try{
+    const u=new URL(href);
+    return u.hostname==='ceomsf786-bit.github.io' && u.pathname==='/SSH/submit-homework.html';
+  }catch{return false;}
+}
 
 function embedHref(raw){
   const href=safeHref(raw);
@@ -112,8 +120,6 @@ function wireStudentDivider(pdfArea){
     if(evt.cancelable)evt.preventDefault();
   });
 
-  /* Listen on window so the drag keeps working even when the finger/mouse
-     leaves the narrow splitter or passes over the embedded iframe. */
   window.addEventListener('pointermove',applyPosition,{passive:false});
   window.addEventListener('pointerup',stop);
   window.addEventListener('pointercancel',stop);
@@ -167,12 +173,24 @@ function ensureStudentViewer(){
 }
 
 function openStudentResource(href,title){
+  const external=safeHref(href);
+  if(!external)return;
+
+  // The homework page posts to Google Apps Script, whose response cannot be
+  // displayed inside this iframe. Open homework submissions in a normal tab
+  // so Drive upload + redirect can complete reliably.
+  if(isHomeworkSubmissionLink(external)){
+    panel?.classList.add('hidden');
+    window.open(external,'_blank','noopener,noreferrer');
+    $('statusText') && ($('statusText').textContent='Homework submission opened in a new tab');
+    return;
+  }
+
   const viewer=ensureStudentViewer();
   if(!viewer)return;
   const pdfArea=document.querySelector('.pdf-area');
-  const external=safeHref(href);
-  const embedded=embedHref(href);
-  if(!external||!embedded)return;
+  const embedded=embedHref(external);
+  if(!embedded)return;
 
   panel?.classList.add('hidden');
   pdfArea?.classList.add('snt-link-opened');
