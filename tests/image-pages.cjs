@@ -1,6 +1,6 @@
 const fs=require('fs'), vm=require('vm'), assert=require('assert/strict');
 const root=require('path').join(__dirname,'../');
-const source=fs.readFileSync(root+'v312-imageboards.js','utf8').replace(/^import .*;\n/gm,'');
+const source=fs.readFileSync(root+'v312-imageboards.js','utf8').replace(/^import .*;\n/gm,'').replace('await installBoardInteractionTools();','');
 async function run(teacher){
  const elements=new Map();
  class El {
@@ -27,7 +27,7 @@ async function run(teacher){
    if(action==='upload-image'){let image={id:'image'+images.length,board_no:no,image_name:'Test'};images.push(image);data={image};}
    return {ok:true,json:async()=>data,blob:async()=>new Blob(['image'])};},Blob,
  };
- vm.createContext(context);vm.runInContext(source+'\nwindow.test={pointerDown,pointerMove,pointerUp,uploadFiles};',context);
+ vm.createContext(context);vm.runInContext(source+'\nwindow.test={pointerDown,pointerMove,pointerUp,uploadFiles,remember,history,getState:()=>state};',context);
  await context.window.SNTImageBoards.open(1);
  assert(elements.has('imageBoardOverlay'),'lazy host initializes');
  assert.equal(elements.get('imageBoardZoomReset').textContent,'100%');assert.equal(elements.get('imageBoardZoomWrap').style.transform,'scale(1)');
@@ -37,7 +37,12 @@ async function run(teacher){
  assert.equal(context.window.SNTImageBoards.boardNo(),2,'fresh board selected');
  assert.equal(boards[0].objects.length,teacher?1:0,'pending drawing persisted on original page');
  assert.equal(boards[1].objects.length,0,'drawing did not leak into next page');
- if(teacher){await context.window.test.uploadFiles([{name:'test.png',type:'image/png'}]);assert.equal(images[0].board_no,2,'image uploaded to correct board');}
+ if(teacher){await context.window.test.uploadFiles([{name:'test.png',type:'image/png'}]);assert.equal(images[0].board_no,2,'image uploaded to correct board');
+  const st=context.window.test.getState();st.objects=[{id:'object',type:'text',x:.2,y:.3,text:'Move me'}];
+  const before=structuredClone(st.placements[images[0].id]);context.window.test.remember();st.objects[0].x=.4;st.placements[images[0].id].x+=100;
+  context.window.test.history(st.undo,st.redo);assert.equal(st.objects[0].x,.2);assert.equal(st.placements[images[0].id].x,before.x,'undo restores image and drawing together');
+  context.window.test.history(st.redo,st.undo);assert.equal(st.objects[0].x,.4);assert.equal(st.placements[images[0].id].x,before.x+100,'redo restores group move');
+ }
  await context.window.SNTImageBoards.open(1);
  assert.equal(elements.get('imageBoardZoomReset').textContent,'100%','returning page opens at 100%');
  if(teacher)assert.equal(boards[0].objects.length,1,'returning preserves original drawing');

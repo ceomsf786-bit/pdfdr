@@ -79,7 +79,7 @@ function syncSelectedStyleControls(o){
     const opacity=Math.max(0,Math.min(1,Number(o.fillOpacity??1)));
     const pct=Math.round(opacity*100);
     if(els.shapeFillOpacity)els.shapeFillOpacity.value=String(pct);
-    if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`${pct}%\`;
+    if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`\${pct}%\`;
   }
 }`,
   'shape helpers'
@@ -155,7 +155,7 @@ function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
   els.shapeFillToggle?.addEventListener('change',applySelectedStyle);
   els.shapeFillColor?.addEventListener('input',applySelectedStyle);
-  els.shapeFillOpacity?.addEventListener('input',()=>{if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`${els.shapeFillOpacity.value}%\`;applySelectedStyle();});
+  els.shapeFillOpacity?.addEventListener('input',()=>{if(els.shapeFillOpacityValue)els.shapeFillOpacityValue.textContent=\`\${els.shapeFillOpacity.value}%\`;applySelectedStyle();});
   els.colorInput?.addEventListener('input',applySelectedStyle);
   els.widthInput?.addEventListener('input',applySelectedStyle);`,
   'selected style listeners'

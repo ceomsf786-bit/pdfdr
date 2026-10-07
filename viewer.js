@@ -39,6 +39,21 @@ const state = {
   bookPages:[], bookSequence:[], bookIndex:0, permanentNote:null, bookPage:null, bookSaveTimer:null
 };
 
+// Keep cached headers in step with automatic refresh and cross-tab sign-out.
+if(TEACHER)supabase.auth.onAuthStateChange((_event,session)=>{state.session=session||null;});
+let interactionToolsPromise=null;
+async function installPdfInteractionTools(){
+ if(!interactionToolsPromise)interactionToolsPromise=import(new URL('./snt-interaction-tools.js',location.href).href);
+ const {installInteractionTools,objectBounds}=await interactionToolsPromise;
+ installInteractionTools('pdf',{
+  canvas:()=>els.overlayCanvas,teacher:()=>TEACHER,enabled:()=>true,
+  visible:()=>!els.pdfScroller?.classList.contains('hidden')&&!els.workspace?.classList.contains('hidden')&&state.pdfOpen!==false,
+  documentId:()=>state.doc?.id,surfaceKey:()=> 'pdf:'+state.pageNo,tool:()=>state.tool,channel:()=>state.liveReady?state.liveChannel:null,
+  items:()=>state.pageObjects.map(o=>({id:'object:'+o.id,object:o,bounds:objectBounds(o,els.overlayCanvas)})),
+  remember,changed:()=>{state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();},save:()=>savePageSoon(10),status:setStatus,
+  selection:items=>{const o=items.length===1?items[0].object:null;state.selectedId=o?.id||null;if(typeof syncSelectedStyleControls==='function')syncSelectedStyleControls(o);drawOverlay();}
+ });
+}
 function showError(message){
   els.loading?.classList.add('hidden');
   els.workspace?.classList.add('hidden');
@@ -150,6 +165,7 @@ async function setupLiveChannel(){
   if(state.liveChannel){try{await supabase.removeChannel(state.liveChannel);}catch{};state.liveChannel=null;state.liveReady=false;}
   const ch=supabase.channel(topic,{config:{broadcast:{self:false,ack:false}}});
   state.liveChannel=ch;
+  ch.on('broadcast',{event:'teacher-laser'},({payload})=>window.SNTInteractionTools?.receiveLaser(payload));
   ch.on('broadcast',{event:'teacher-view'},({payload})=>queueRemoteTeacherView(payload));
   ch.on('broadcast',{event:'page-content'},({payload})=>applyRemotePageContent(payload));
   ch.on('broadcast',{event:'board-content'},({payload})=>applyRemoteBoardContent(payload));
@@ -657,6 +673,25 @@ function authHeaders(extra={}){
   if(!TEACHER && state.token) h['x-viewer-token']=state.token;
   return h;
 }
+async function freshAuthHeaders(extra={}){
+ if(TEACHER){
+  const {data,error}=await supabase.auth.getSession();if(error)throw error;
+  state.session=data?.session||null;
+  if(!state.session?.access_token)throw new Error('Your teacher session has ended. Please sign in again.');
+ }
+ return authHeaders(extra);
+}
+async function authenticatedFetch(url,options={}){
+ const response=await fetch(url,{...options,headers:await freshAuthHeaders(options.headers||{})});
+ if(!TEACHER)return response;
+ let authRejected=response.status===401;
+ if(response.status===400){try{authRejected=(await response.clone().json()).detail==='AUTH_REQUIRED';}catch{}}
+ if(!authRejected)return response;
+ const {data,error}=await supabase.auth.refreshSession();
+ if(error||!data?.session?.access_token)return response;
+ state.session=data.session;
+ return fetch(url,{...options,headers:authHeaders(options.headers||{})});
+}
 async function api(action, extra={}){
   const r=await fetch(apiUrl(action,extra),{headers:authHeaders()});
   const data=await r.json().catch(()=>({}));
@@ -723,13 +758,13 @@ function drawObject(ctx,o,canvas,selected=false){
   if(selected){ctx.globalAlpha=1;ctx.setLineDash([6*ratio,5*ratio]);ctx.strokeStyle='#147a5a';ctx.lineWidth=2*ratio;const pts=objectPoints(o);if(pts.length){const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);ctx.strokeRect(X(minx)-6*ratio,Y(miny)-6*ratio,Math.max(12*ratio,X(maxx-minx)+12*ratio),Math.max(12*ratio,Y(maxy-miny)+12*ratio));}}
   ctx.restore();
 }
-function drawOverlay(){ const c=els.overlayCanvas,ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);for(const o of state.pageObjects)drawObject(ctx,o,c,TEACHER&&o.id===state.selectedId); }
+function drawOverlay(){ const c=els.overlayCanvas,ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);for(const o of state.pageObjects)drawObject(ctx,o,c,TEACHER&&o.id===state.selectedId); window.SNTInteractionTools?.refresh('pdf'); }
 function drawLiveSegment(o,a,b){ const c=els.overlayCanvas,ctx=c.getContext('2d'),ratio=strokeRatio(c);ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=o.color;ctx.lineWidth=Math.max(1,(o.width||4)*ratio);ctx.globalAlpha=o.type==='highlighter'?.28:1;ctx.beginPath();ctx.moveTo(a.x*c.width,a.y*c.height);ctx.lineTo(b.x*c.width,b.y*c.height);ctx.stroke();ctx.restore(); }
 function scheduleOverlayRedraw(){ if(state.rafPending)return;state.rafPending=true;requestAnimationFrame(()=>{state.rafPending=false;drawOverlay();}); }
 function remember(){ if(!TEACHER)return;state.undo.push(clone(state.pageObjects));if(state.undo.length>70)state.undo.shift();state.redo=[]; }
 function applyHistory(from,to){ const item=from.pop();if(!item)return;to.push(clone(state.pageObjects));state.pageObjects=clone(item);state.pageCache.set(state.pageNo,clone(state.pageObjects));state.selectedId=null;drawOverlay();savePageSoon(20); }
 function setTool(tool){
-  state.tool=tool;state.selectedId=null;
+  state.tool=tool;state.selectedId=null;window.SNTInteractionTools?.clearSelection('pdf');
   if(TEACHER&&state.galleryArrange){state.galleryArrange=false;state.activeSurface='gallery';setStatus(tool==='hand'?'Hand tool: drag gallery to pan left/right/up/down.':'Draw mode: draw anywhere on the gallery, including directly over images.');}
   els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand');drawOverlay();drawGalleryOverlay();renderGallery();
 }
@@ -737,7 +772,7 @@ function pointerDown(evt){
   if(!TEACHER)return;
   state.activeSurface='pdf';
   const p=norm(evt,els.overlayCanvas);
-  if(state.tool==='hand')return;
+  if(state.tool==='hand'||state.tool==='laser')return;
   if(state.tool==='select'){
     const hit=hitTest(state.pageObjects,p);state.selectedId=hit?.id||null;drawOverlay();
     if(hit){remember();state.pointer={id:hit.id,last:p,kind:'move',surface:'pdf'};els.overlayCanvas.setPointerCapture?.(evt.pointerId);}return;
@@ -1512,7 +1547,7 @@ async function insertBookPage(){
 async function saveBookPageTitle(){
  const item=bookItem();if(!TEACHER||!state.doc||!item||item.kind==='pdf')return;
  const title=(bookEls.title?.value||'').trim().slice(0,100)|| (item.kind==='note'?'Note Page':'Image / Drawing Page');
- const r=await fetch(apiUrl('rename-book-page',{page:item.id}),{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({title})});
+ const r=await authenticatedFetch(apiUrl('rename-book-page',{page:item.id}),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Could not save this page name.');
  item.title=title;const stored=state.bookPages.find(x=>x.id===item.id);if(stored)stored.title=title;
  if(bookItem()?.id===item.id)bookEls.title.value=title;
@@ -1526,7 +1561,7 @@ async function deleteBookPage(){
  try{
   clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;
   await window.SNTImageBoards?.flush?.();
-  const r=await fetch(apiUrl('delete-book-page',{page:item.id}),{method:'POST',headers:authHeaders()});
+  const r=await authenticatedFetch(apiUrl('delete-book-page',{page:item.id}),{method:'POST'});
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Could not delete this added page.');
   await loadBookPages();
   await showBookIndex(bookPageIndex(String(item.anchor_pdf_page)));
@@ -1626,6 +1661,7 @@ async function startContinuousBook(){
  bindBookUi();
  bookStarting=(async()=>{
   try{
+   await installPdfInteractionTools();
    await loadBookPages();
    const key=!TEACHER&&studentFollowActive()?state.liveBookKey:'pdf:'+state.pageNo;
    const idx=state.bookSequence.findIndex(x=>x.key===key);

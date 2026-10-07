@@ -558,3 +558,7 @@ body[data-mode=student] #workspace.pdf-hidden>.pdf-area{display:none!important}
 .permanent-note-editor p{margin:0 0 10px}.permanent-note-editor h1,.permanent-note-editor h2,.permanent-note-editor h3{line-height:1.25;margin:18px 0 10px}
 .permanent-note-editor a{color:#147a5a;text-decoration:underline}
 @media(max-width:650px){.permanent-note-head input{min-width:0;font-size:16px}.permanent-note-toolbar{gap:4px;padding:6px}.permanent-note-toolbar button,.permanent-note-toolbar select{font-size:12px}.permanent-note-editor{padding:14px}.permanent-note-editor td,.permanent-note-editor th{padding:6px;min-width:45px;font-size:14px}}
+
+/* Transient shared selection/laser layer scales and scrolls with its page. */
+.snt-interaction-overlay{position:absolute;left:0;top:0;pointer-events:none!important;z-index:24}
+.tool[data-tool=laser]{color:#f02448}.tool[data-tool=laser].active{background:#fff0f3;border-color:#f9a4b4;color:#e01840}

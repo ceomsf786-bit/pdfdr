@@ -1,5 +1,12 @@
 {
   "private": true,
-  "scripts": { "test:permanent": "node permanent-document.cjs" },
-  "devDependencies": { "jsdom": "30.1.1" }
+  "scripts": {
+    "test:permanent": "node permanent-document.cjs",
+    "test:interactions": "node interaction-tools.cjs",
+    "test:sessions": "node session-requests.cjs",
+    "test:loader": "node loader-compatibility.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.1"
+  }
 }
