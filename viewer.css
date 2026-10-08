@@ -562,3 +562,14 @@ body[data-mode=student] #workspace.pdf-hidden>.pdf-area{display:none!important}
 /* Transient shared selection/laser layer scales and scrolls with its page. */
 .snt-interaction-overlay{position:absolute;left:0;top:0;pointer-events:none!important;z-index:24}
 .tool[data-tool=laser]{color:#f02448}.tool[data-tool=laser].active{background:#fff0f3;border-color:#f9a4b4;color:#e01840}
+
+/* v3.42 inserted notes share the permanent document controls. */
+.book-note-tools{position:sticky;top:0;z-index:6;max-width:1000px;margin:0 auto 10px;background:#fff;border:1px solid #d7dfe7;border-radius:8px;overflow:hidden}
+.book-note-tools .book-note-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 12px;background:#f3f5f7;border-bottom:1px solid #d7dfe7}
+.book-note-toolbar button,.book-note-toolbar select{font:inherit;font-size:13px;border:1px solid #cbd5dc;border-radius:5px;background:#fff;min-height:30px;padding:4px 7px}
+.book-note-toolbar input[type=color]{width:32px;height:30px;padding:2px;border:1px solid #cbd5dc;background:#fff}
+.book-note-toolbar button:hover{background:#e8f6f1}
+#bookSaveStatus{font-size:12px;color:#526477;margin-left:auto}
+.book-note-tip{font-size:12px;color:#526477;padding:6px 12px}
+@media(max-width:650px){.book-note-tools .book-note-toolbar{gap:4px;padding:6px}.book-note-toolbar button,.book-note-toolbar select{font-size:12px}}
+.book-note-editor p{margin:0 0 10px}.book-note-editor h1,.book-note-editor h2,.book-note-editor h3{line-height:1.25;margin:18px 0 10px}.book-note-editor a{color:#147a5a;text-decoration:underline}

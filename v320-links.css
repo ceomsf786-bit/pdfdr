@@ -122,3 +122,7 @@ body[data-mode=student] .student-workspace.snt-link-maximised .snt-student-link-
  body[data-mode=student] .student-topbar #bookPageTitle{grid-column:1 / -1;grid-row:4;max-width:100%;width:100%}
  body[data-mode=student] .student-topbar .top-actions .btn{min-height:28px;padding:3px 5px;font-size:13px}
 }
+@media(max-width:650px){
+ body[data-mode=student] .student-topbar #downloadPdfBtn{grid-column:1 / 3;grid-row:4;justify-self:start;font-size:13px}
+ body[data-mode=student] .student-topbar #bookPageTitle{grid-row:5}
+}

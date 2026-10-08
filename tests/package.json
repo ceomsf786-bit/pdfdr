@@ -4,9 +4,12 @@
     "test:permanent": "node permanent-document.cjs",
     "test:interactions": "node interaction-tools.cjs",
     "test:sessions": "node session-requests.cjs",
-    "test:loader": "node loader-compatibility.cjs"
+    "test:loader": "node loader-compatibility.cjs",
+    "test:notes": "node inserted-note.cjs",
+    "test:downloads": "node student-download.cjs"
   },
   "devDependencies": {
-    "jsdom": "30.1.1"
+    "jsdom": "30.1.1",
+    "pdf-lib": "1.17.1"
   }
 }

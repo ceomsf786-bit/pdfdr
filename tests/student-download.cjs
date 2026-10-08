@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),path=require('path');const PDFLib=require('pdf-lib');
+const source=fs.readFileSync(path.join(__dirname,'../viewer.js'),'utf8'),code=source.slice(source.indexOf('async function buildStudentDownloadPdf(){'),source.indexOf('async function downloadStudentPdf(){'));
+(async()=>{
+ const base=await PDFLib.PDFDocument.create();for(const width of [501,502,503])base.addPage([width,700]);const baseBytes=await base.save();
+ const added=await PDFLib.PDFDocument.create();for(const width of [601,602])added.addPage([width,700]);const addedBytes=await added.save();
+ let manifest={page_count:5,sources:[{id:'before',page_start:1,page_count:2},{id:'inserted',page_start:1,page_count:2},{id:'after',page_start:3,page_count:1}]},failed=false,requests=[];
+ const ctx={window:{PDFLib},Array,Date,Number,Error,setStatus:()=>{},api:async action=>{assert.equal(action,'pdf-sources');return manifest},apiUrl:(action,p)=>'https://test.invalid/'+action+'?id='+(p.source||''),authHeaders:()=>({'x-viewer-token':'student-token'}),fetch:async(url,opts)=>{requests.push({url,opts});if(failed&&url.includes('inserted'))return{ok:false};const bytes=url.includes('inserted')?addedBytes:baseBytes;return{ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}}};vm.createContext(ctx);vm.runInContext(code,ctx);
+ let output=await ctx.buildStudentDownloadPdf();assert.deepEqual(output.getPages().map(p=>p.getWidth()),[501,502,601,602,503]);output=await PDFLib.PDFDocument.load(await output.save());assert.equal(output.getPageCount(),5);assert(requests.every(r=>r.opts.headers['x-viewer-token']==='student-token'));assert(requests.every(r=>!r.opts.headers.Authorization),'student needs no teacher session');
+ failed=true;await assert.rejects(ctx.buildStudentDownloadPdf(),/inserted or original PDFs/);failed=false;
+ manifest.sources[2].page_start=4;await assert.rejects(ctx.buildStudentDownloadPdf(),/range no longer matches/);manifest.sources[2].page_start=3;manifest.page_count=6;await assert.rejects(ctx.buildStudentDownloadPdf(),/page count does not match/);
+ manifest={page_count:0,sources:[]};requests=[];output=await ctx.buildStudentDownloadPdf();assert.equal(output.getPageCount(),3);assert(requests[0].url.includes('/pdf?'));
+ manifest={legacy_composed:true,page_count:5,sources:[{id:'old',page_start:1,page_count:5}]};requests=[];output=await ctx.buildStudentDownloadPdf();assert.equal(output.getPageCount(),3);assert(requests[0].url.includes('/pdf?'),'legacy composed document uses the composed endpoint');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert(html.includes('id="downloadPdfBtn"'));assert(html.includes('pdf-lib@1.17.1'));
+ console.log('Student downloads: real five-page PDF merge, inserted-file order, exact source ranges, student-token requests, no partial download after failure, count validation, single-file/legacy fallback and button passed');
+})().catch(e=>{console.error(e);process.exit(1)});

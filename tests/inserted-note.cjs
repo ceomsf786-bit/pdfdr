@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),path=require('path'),{JSDOM}=require('jsdom');
+const source=fs.readFileSync(path.join(__dirname,'../viewer.js'),'utf8'),between=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
+const dom=new JSDOM(fs.readFileSync(path.join(__dirname,'../teacher.html'),'utf8'),{url:'https://test.invalid/teacher.html'}),document=dom.window.document;
+const pages=[{id:'n1',kind:'note',title:'One'},{id:'n2',kind:'note',title:'Two'}];let current=0,saved=[],commands=[],fail=false;
+const editor=document.getElementById('bookNoteEditor');editor.contentEditable='true';
+const ctx={document,window:dom.window,console,URL,TEACHER:true,RICH_MARKER:'<!--snt-rich-->',state:{doc:{id:'doc'},bookPages:pages,bookSequence:pages,bookSaveTimer:null},bookEls:{editor,title:document.getElementById('bookPageTitle')},bookItem:()=>pages[current],$:id=>document.getElementById(id),supabase:{rpc:async(name,args)=>{if(fail)return{error:new Error('offline')};saved.push(args);return{error:null}}},broadcastContentRefresh:()=>{},setStatus:()=>{},setTimeout,clearTimeout,prompt:()=> '2 x 3',alert:()=>{}};
+vm.createContext(ctx);vm.runInContext(between('function sanitizeRichHtml(','function setBoardEditorContent(')+between('function renderStoredBoardContent(','function rememberBoardSelection(')+between('function setBookHtml(','async function insertBookPage(){')+between('function bindRichDocumentEditor(','let bookUiBound='),ctx);
+document.execCommand=(name,_,value)=>{commands.push({name,value});if(name==='insertHTML')editor.innerHTML=value;return true;};
+(async()=>{
+ ctx.bindBookNoteEditor();
+ document.querySelector('#bookNoteToolbar [data-command="bold"]').click();assert.equal(commands.at(-1).name,'bold');
+ document.querySelector('#bookNoteToolbar [data-command="underline"]').click();assert.equal(commands.at(-1).name,'underline');
+ document.getElementById('bookInsertTable').click();assert.equal(editor.querySelectorAll('tr').length,2);assert.equal(editor.querySelectorAll('th,td').length,6);
+ await ctx.saveCurrentBookNote();assert(saved.at(-1).p_text_content.includes('<table>'),'blank inserted table survives save');
+ const e=new dom.window.Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(e,'clipboardData',{value:{getData:type=>type==='text/html'?'<table><tr><th colspan="2"><b>Homework</b></th></tr><tr><td>Date</td><td><u>Task</u></td></tr></table><script>bad()</script>':''}});editor.dispatchEvent(e);assert(e.defaultPrevented);assert(!editor.querySelector('script'));assert.equal(editor.querySelector('th').colSpan,2);
+ await ctx.flushBookNote();assert.equal(saved.at(-1).p_page_id,'n1');const student=document.createElement('div');ctx.renderStoredBoardContent(student,saved.at(-1).p_text_content);assert.equal(student.querySelector('th').colSpan,2);assert(student.querySelector('u'));
+ editor.innerHTML='<p>Page one edit</p>';ctx.scheduleBookSave();await ctx.flushBookNote();current=1;editor.innerHTML='<p>Page two edit</p>';ctx.scheduleBookSave();await ctx.flushBookNote();assert.equal(saved.at(-2).p_page_id,'n1');assert.equal(saved.at(-1).p_page_id,'n2');assert(saved.at(-2).p_text_content.includes('Page one edit'));
+ editor.innerHTML='<p>Keep me</p>';ctx.scheduleBookSave();fail=true;await assert.rejects(ctx.flushBookNote(),/offline/);fail=false;await ctx.flushBookNote();assert(saved.at(-1).p_text_content.includes('Keep me'),'failed save snapshot remains available to retry');
+ ctx.TEACHER=false;const count=saved.length;ctx.bookCommand('bold');await ctx.saveCurrentBookNote();assert.equal(saved.length,count,'student cannot change notes');
+ const ids=[...document.querySelectorAll('[id]')].map(el=>el.id);assert.equal(ids.length,new Set(ids).size);assert.deepEqual(Array.from(document.querySelectorAll('#bookNoteToolbar [data-command]'),el=>el.dataset.command),Array.from(document.querySelectorAll('#permanentNoteToolbar [data-command]'),el=>el.dataset.command));
+ console.log('Inserted notes: same toolbar commands, blank/pasted/merged tables, safe HTML, student display, per-page autosave flush, failed-save retry, student guard and unique IDs passed');
+})().catch(e=>{console.error(e);process.exit(1)});

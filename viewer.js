@@ -1289,6 +1289,7 @@ function bindStudentPinch(){
   els.pdfScroller.addEventListener('pointercancel',finish);
 }
 function bindCommon(){
+  $('downloadPdfBtn')?.addEventListener('click',downloadStudentPdf);
   els.prevPage?.addEventListener('click',()=>{if(studentFollowActive())return;renderPage(state.pageNo-1);});
   els.nextPage?.addEventListener('click',()=>{if(studentFollowActive())return;renderPage(state.pageNo+1);});
   els.pageInput?.addEventListener('change',()=>{if(studentFollowActive()){els.pageInput.value=state.pageNo;return;}renderPage(els.pageInput.value);});
@@ -1340,7 +1341,7 @@ function bindTeacher(){
   els.boardHomework?.addEventListener('click',()=>{const b=homeworkBoard();if(b){state.boardNo=Number(b.board_no);loadBoardText();}});
   els.boardAdd?.addEventListener('click',addBoard);els.boardDelete?.addEventListener('click',deleteBoard);
   els.pasteImageBtn?.addEventListener('click',()=>els.imageFileInput?.click());els.imageFileInput?.addEventListener('change',()=>{const fs=[...(els.imageFileInput.files||[])];if(fs.length)uploadImages(fs);els.imageFileInput.value='';});els.deleteImageBtn?.addEventListener('click',deleteCurrentImage);els.galleryArrangeBtn?.addEventListener('click',()=>setGalleryArrange(!state.galleryArrange));els.galleryTileBtn?.addEventListener('click',autoTileGallery);
-  document.addEventListener('paste',e=>{if(!TEACHER||bookEls.permEditor?.contains(e.target))return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!item)return;const file=item.getAsFile();if(file){e.preventDefault();uploadImage(file);}});
+  document.addEventListener('paste',e=>{if(!TEACHER||bookEls.permEditor?.contains(e.target)||bookEls.editor?.contains(e.target))return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(!item)return;const file=item.getAsFile();if(file){e.preventDefault();uploadImage(file);}});
   els.copyStudentLink?.addEventListener('click',async()=>{await copyText(studentUrl());setStatus('Student link copied');});els.hookStudentsBtn?.addEventListener('click',()=>setStudentHooked(!state.studentHooked).catch(e=>setStatus(e.message)));els.exportPdf?.addEventListener('click',exportAnnotatedPdf);els.libraryBtn?.addEventListener('click',async()=>{await releaseTeacherControl({silent:true});await openLibrary();});els.signOutBtn?.addEventListener('click',async()=>{await releaseTeacherControl({silent:true});await supabase.auth.signOut();location.href='./teacher.html';});els.createDocBtn?.addEventListener('click',createDocumentFromForm);
   els.fullscreenBtn?.addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch{}});
   els.focusPdfBtn?.addEventListener('click',()=>setPdfFocus(!document.body.classList.contains('pdf-focus-mode')));
@@ -1355,7 +1356,7 @@ function bindTeacher(){
     }
   },{passive:true});
   document.addEventListener('keydown',e=>{
-    if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+    if(['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable||document.activeElement?.closest('[contenteditable="true"]'))return;
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault(); if(state.activeSurface==='gallery') e.shiftKey?applyGalleryHistory(state.galleryRedo,state.galleryUndo):applyGalleryHistory(state.galleryUndo,state.galleryRedo); else e.shiftKey?applyHistory(state.redo,state.undo):applyHistory(state.undo,state.redo);}
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault(); state.activeSurface==='gallery'?applyGalleryHistory(state.galleryRedo,state.galleryUndo):applyHistory(state.redo,state.undo);}
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){ const list=state.activeSurface==='gallery'?(state.galleryState?.objects||[]):state.pageObjects; const o=list.find(x=>x.id===state.selectedId); if(o)state.clipboard={surface:state.activeSurface, object:clone(o)}; }
@@ -1364,6 +1365,44 @@ function bindTeacher(){
   });
 }
 function deleteSelectedObject(){if(!state.selectedId)return;if(state.activeSurface==='gallery'&&state.galleryState){rememberGallery();state.galleryState.objects=state.galleryState.objects.filter(x=>x.id!==state.selectedId);state.selectedId=null;drawGalleryOverlay();saveGalleryStateSoon(20);}else{remember();state.pageObjects=state.pageObjects.filter(x=>x.id!==state.selectedId);state.selectedId=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();savePageSoon(20);}}
+
+async function buildStudentDownloadPdf(){
+ const {PDFDocument}=window.PDFLib;
+ const manifest=await api('pdf-sources');
+ if(Array.isArray(manifest.sources)&&manifest.sources.length&&!manifest.legacy_composed&&Number(manifest.page_count)>0){
+  const pdf=await PDFDocument.create();
+  for(let i=0;i<manifest.sources.length;i++){
+   const source=manifest.sources[i],count=Number(source.page_count),start=Number(source.page_start||1)-1;
+   if(!Number.isInteger(count)||count<0||!Number.isInteger(start)||start<0)throw new Error('This PDF has an invalid page range.');
+   if(count===0)continue;
+   setStatus('Preparing PDF file '+(i+1)+' of '+manifest.sources.length+'…');
+   const r=await fetch(apiUrl('pdf-source',{source:source.id,export:Date.now()}),{headers:authHeaders(),cache:'no-store'});
+   if(!r.ok)throw new Error('Could not download one of the inserted or original PDFs. Please try again.');
+   const input=await PDFDocument.load(await r.arrayBuffer());
+   if(start+count>input.getPageCount())throw new Error('A PDF page range no longer matches its source file.');
+   const pages=await pdf.copyPages(input,Array.from({length:count},(_,k)=>start+k));pages.forEach(page=>pdf.addPage(page));
+  }
+  if(pdf.getPageCount()!==Number(manifest.page_count))throw new Error('The full PDF page count does not match. Please try again.');
+  return pdf;
+ }
+ const r=await fetch(apiUrl('pdf',{export:Date.now()}),{headers:authHeaders(),cache:'no-store'});
+ if(!r.ok)throw new Error('Could not download the PDF. Please try again.');
+ return PDFDocument.load(await r.arrayBuffer());
+}
+async function downloadStudentPdf(){
+ if(TEACHER||!state.doc)return;
+ const button=$('downloadPdfBtn');if(button?.disabled)return;
+ if(button){button.disabled=true;button.textContent='Preparing PDF…';}
+ try{
+  if(!window.PDFLib)throw new Error('The PDF download tools have not loaded. Refresh the page and try again.');
+  setStatus('Preparing complete PDF…');
+  const pdf=await buildStudentDownloadPdf(),bytes=await pdf.save(),blob=new Blob([bytes],{type:'application/pdf'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;
+  a.download=(state.doc.title||'Textbook').replace(/[^A-Za-z0-9_-]+/g,'_')+'_full.pdf';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);setStatus('Full PDF download ready — '+pdf.getPageCount()+' pages.');
+ }catch(e){setStatus('Download failed: '+e.message);alert(e.message);}
+ finally{if(button){button.disabled=false;button.textContent='Download PDF';}}
+}
 
 async function exportAnnotatedPdf(){
   if(!TEACHER||!window.PDFLib)return;
@@ -1493,6 +1532,7 @@ async function refreshBookSequence(){
 }
 async function showBookIndex(index){
  if(!state.bookSequence.length)return;
+ await flushBookNote();
  await window.SNTImageBoards?.flush?.();
  state.bookIndex=Math.max(0,Math.min(state.bookSequence.length-1,Number(index)||0));
  const item=bookItem();syncBookCounter();
@@ -1504,9 +1544,11 @@ async function showBookIndex(index){
  els.pdfScroller?.classList.add('hidden');bookEls.page?.classList.remove('hidden');
  bookEls.title.value=item.title|| (item.kind==='note'?'Note Page':'Image / Drawing Page');
  bookEls.editor?.classList.toggle('hidden',item.kind!=='note');
+ $('bookNoteTools')?.classList.toggle('hidden',!TEACHER||item.kind!=='note');
+ bookSelection=null;
  bookEls.imageHost?.classList.toggle('hidden',item.kind!=='image');
  if(item.kind==='note'){
-  if(TEACHER){bookEls.editor.contentEditable='true';setBookHtml(bookEls.editor,item.text_content||'');}
+  if(TEACHER){bookEls.editor.contentEditable='true';setBookHtml(bookEls.editor,item.text_content||'');bookSaveStatus('Saved');}
   else{bookEls.editor.contentEditable='false';renderStoredBoardContent(bookEls.editor,item.text_content||'','No notes on this page yet.');}
  }
  if(TEACHER){broadcastTeacherView();pushLiveState().catch(()=>{});}
@@ -1527,14 +1569,49 @@ async function followBookPage(key,page){
  if(idx>=0&&bookItem()?.key!==state.bookSequence[idx].key)await showBookIndex(idx);
 }
 function setBookHtml(el,raw){if(!el)return;const rich=storedBoardHtml(raw);if(rich!==null)el.innerHTML=rich;else el.textContent=String(raw||'');}
-function bookStorage(){if(!bookEls.editor)return '';const html=sanitizeRichHtml(bookEls.editor.innerHTML);const tmp=document.createElement('div');tmp.innerHTML=html;return (tmp.innerText||tmp.textContent||'').trim()?RICH_MARKER+html:'';}
-async function saveCurrentBookNote(){
- if(!TEACHER)return;const item=bookItem();if(item?.kind!=='note')return;
- const title=(bookEls.title?.value||item.title||'Note Page').trim().slice(0,100)||'Note Page';
- const text=bookStorage();const {error}=await supabase.rpc('snt_pdf_book_save_note',{p_document_id:state.doc.id,p_page_id:item.id,p_title:title,p_text_content:text});if(error)throw error;
- item.title=title;item.text_content=text;broadcastContentRefresh('book');setStatus('Note page saved');
+function bookStorage(){if(!bookEls.editor)return '';const html=sanitizeRichHtml(bookEls.editor.innerHTML);const tmp=document.createElement('div');tmp.innerHTML=html;return (tmp.innerText||tmp.textContent||'').trim()||tmp.querySelector('table')?RICH_MARKER+html:'';}
+let bookSaveQueue=Promise.resolve(),pendingBookSnapshot=null,bookSelection=null;
+function bookSaveStatus(text){const el=$('bookSaveStatus');if(el)el.textContent=text;}
+function bookNoteSnapshot(){
+ const item=bookItem();if(!TEACHER||!state.doc||item?.kind!=='note')return null;
+ return {documentId:state.doc.id,pageId:item.id,title:(bookEls.title?.value||item.title||'Note Page').trim().slice(0,100)||'Note Page',text:bookStorage()};
 }
-function scheduleBookSave(){if(!TEACHER)return;clearTimeout(state.bookSaveTimer);state.bookSaveTimer=setTimeout(()=>saveCurrentBookNote().catch(e=>setStatus(e.message)),500);}
+function saveBookNoteSnapshot(snapshot){
+ if(!snapshot)return Promise.resolve();
+ const run=async()=>{
+  bookSaveStatus('Saving…');
+  const {error}=await supabase.rpc('snt_pdf_book_save_note',{p_document_id:snapshot.documentId,p_page_id:snapshot.pageId,p_title:snapshot.title,p_text_content:snapshot.text});
+  if(error){if(state.doc?.id===snapshot.documentId&&bookItem()?.id===snapshot.pageId)bookSaveStatus('Not saved — retry with Save');throw error;}
+  if(state.doc?.id===snapshot.documentId){
+   for(const item of [...state.bookPages,...state.bookSequence])if(item.id===snapshot.pageId){item.title=snapshot.title;item.text_content=snapshot.text;}
+   if(bookItem()?.id===snapshot.pageId)bookSaveStatus('Saved');broadcastContentRefresh('book');
+  }
+ };
+ const result=bookSaveQueue.then(run);bookSaveQueue=result.catch(()=>{});return result;
+}
+async function saveCurrentBookNote(){
+ clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;
+ const snapshot=bookNoteSnapshot();pendingBookSnapshot=null;try{await saveBookNoteSnapshot(snapshot);}catch(e){if(!pendingBookSnapshot)pendingBookSnapshot=snapshot;throw e;}
+}
+function scheduleBookSave(){
+ if(!TEACHER)return;clearTimeout(state.bookSaveTimer);pendingBookSnapshot=bookNoteSnapshot();bookSaveStatus('Unsaved changes');
+ state.bookSaveTimer=setTimeout(()=>{state.bookSaveTimer=null;const snapshot=pendingBookSnapshot;pendingBookSnapshot=null;saveBookNoteSnapshot(snapshot).catch(e=>{if(!pendingBookSnapshot)pendingBookSnapshot=snapshot;setStatus(e.message);});},700);
+}
+async function flushBookNote(){
+ clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;
+ await bookSaveQueue;
+ if(pendingBookSnapshot){const snapshot=pendingBookSnapshot;pendingBookSnapshot=null;try{await saveBookNoteSnapshot(snapshot);}catch(e){pendingBookSnapshot=snapshot;throw e;}}
+ await bookSaveQueue;
+}
+function rememberBookSelection(){
+ const sel=window.getSelection();if(!sel?.rangeCount)return;const range=sel.getRangeAt(0);
+ if(bookEls.editor?.contains(range.commonAncestorContainer))bookSelection=range.cloneRange();
+}
+function bookCommand(command,value=null){
+ if(!TEACHER||bookItem()?.kind!=='note')return;bookEls.editor.focus();
+ if(bookSelection&&bookEls.editor.contains(bookSelection.commonAncestorContainer)){const sel=window.getSelection();sel.removeAllRanges();sel.addRange(bookSelection);}
+ document.execCommand(command,false,value);rememberBookSelection();scheduleBookSave();
+}
 async function insertBookPage(){
  if(!TEACHER||!state.doc)return;
  const choice=prompt('Insert page type:\n1 = Note Page\n2 = Image / Drawing Page','1');if(choice===null)return;
@@ -1547,6 +1624,7 @@ async function insertBookPage(){
 async function saveBookPageTitle(){
  const item=bookItem();if(!TEACHER||!state.doc||!item||item.kind==='pdf')return;
  const title=(bookEls.title?.value||'').trim().slice(0,100)|| (item.kind==='note'?'Note Page':'Image / Drawing Page');
+ await flushBookNote();
  const r=await authenticatedFetch(apiUrl('rename-book-page',{page:item.id}),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Could not save this page name.');
  item.title=title;const stored=state.bookPages.find(x=>x.id===item.id);if(stored)stored.title=title;
@@ -1559,7 +1637,8 @@ async function deleteBookPage(){
  if(!confirm(`Delete added page ${item.displayNumber} “${item.title||'Untitled'}”?`))return;
  const button=$('deleteBookPageBtn');if(button)button.disabled=true;
  try{
-  clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;
+  clearTimeout(state.bookSaveTimer);state.bookSaveTimer=null;pendingBookSnapshot=null;
+  await bookSaveQueue;
   await window.SNTImageBoards?.flush?.();
   const r=await authenticatedFetch(apiUrl('delete-book-page',{page:item.id}),{method:'POST'});
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Could not delete this added page.');
@@ -1604,54 +1683,58 @@ function rememberPermanentSelection(){
 }
 function permanentCommand(command,value=null){
  if(!TEACHER)return;bookEls.permEditor.focus();
- if(permanentSelection){const sel=window.getSelection();sel.removeAllRanges();sel.addRange(permanentSelection);}
+ if(permanentSelection&&bookEls.permEditor.contains(permanentSelection.commonAncestorContainer)){const sel=window.getSelection();sel.removeAllRanges();sel.addRange(permanentSelection);}
  document.execCommand(command,false,value);rememberPermanentSelection();schedulePermanentSave();
 }
-function bindPermanentEditor(){
- if(!TEACHER)return;
- const toolbar=$('permanentNoteToolbar');
+function bindRichDocumentEditor(prefix,editor,{command,remember,changed,save}){
+ if(!TEACHER||!editor)return;
+ const toolbar=$(prefix+'NoteToolbar');
  toolbar?.addEventListener('mousedown',e=>{if(e.target.closest('button'))e.preventDefault();});
  toolbar?.addEventListener('click',e=>{
   const button=e.target.closest('button');if(!button)return;
-  if(button.dataset.command)permanentCommand(button.dataset.command);
-  if(button.id==='permanentInsertTable'){
+  if(button.dataset.command)command(button.dataset.command);
+  if(button.id===prefix+'InsertTable'){
    const raw=prompt('Table size: rows x columns (example 4 x 3)','4 x 3');if(raw===null)return;
    const match=raw.match(/^\s*(\d{1,2})\s*[x×,]\s*(\d{1,2})\s*$/i);
    if(!match||+match[1]<1||+match[1]>30||+match[2]<1||+match[2]>12)return alert('Use 1–30 rows and 1–12 columns, for example 4 x 3.');
-   let html='<table><tbody>';for(let r=0;r<+match[1];r++){html+='<tr>';for(let c=0;c<+match[2];c++)html+=(r===0?'<th><br></th>':'<td><br></td>');html+='</tr>';}html+='</tbody></table><p><br></p>';permanentCommand('insertHTML',html);
+   let html='<table><tbody>';for(let r=0;r<+match[1];r++){html+='<tr>';for(let c=0;c<+match[2];c++)html+=(r===0?'<th><br></th>':'<td><br></td>');html+='</tr>';}html+='</tbody></table><p><br></p>';command('insertHTML',html);
   }
-  if(button.id==='permanentSave'){clearTimeout(permanentSaveTimer);savePermanentDocument().catch(e=>alert(e.message));}
+  if(button.id===prefix+'Save')save().catch(e=>alert(e.message));
  });
- $('permanentTextStyle')?.addEventListener('change',e=>permanentCommand('formatBlock',e.target.value));
- $('permanentFontSize')?.addEventListener('change',e=>permanentCommand('fontSize',e.target.value));
- $('permanentTextColor')?.addEventListener('input',e=>permanentCommand('foreColor',e.target.value));
- document.addEventListener('selectionchange',rememberPermanentSelection);
- bookEls.permTitle?.addEventListener('input',schedulePermanentSave);
- bookEls.permEditor?.addEventListener('input',schedulePermanentSave);
- bookEls.permEditor?.addEventListener('paste',e=>{
+ $(prefix+'TextStyle')?.addEventListener('change',e=>command('formatBlock',e.target.value));
+ $(prefix+'FontSize')?.addEventListener('change',e=>command('fontSize',e.target.value));
+ $(prefix+'TextColor')?.addEventListener('input',e=>command('foreColor',e.target.value));
+ document.addEventListener('selectionchange',remember);
+ editor.addEventListener('input',changed);
+ editor.addEventListener('paste',e=>{
   e.preventDefault();e.stopPropagation();
   const html=e.clipboardData?.getData('text/html')||'',plain=e.clipboardData?.getData('text/plain')||'';
-  if(html)permanentCommand('insertHTML',sanitizeRichHtml(html));
-  else{permanentCommand('insertText',plain);}
+  command(html?'insertHTML':'insertText',html?sanitizeRichHtml(html):plain);
  });
+}
+function bindPermanentEditor(){
+ bindRichDocumentEditor('permanent',bookEls.permEditor,{command:permanentCommand,remember:rememberPermanentSelection,changed:schedulePermanentSave,save:()=>{clearTimeout(permanentSaveTimer);return savePermanentDocument();}});
+ if(TEACHER)bookEls.permTitle?.addEventListener('input',schedulePermanentSave);
+}
+function bindBookNoteEditor(){
+ bindRichDocumentEditor('book',bookEls.editor,{command:bookCommand,remember:rememberBookSelection,changed:scheduleBookSave,save:saveCurrentBookNote});
 }
 let bookUiBound=false,bookStarting=null,bookReadyDoc=null;
 function bindBookUi(){
- if(bookUiBound)return;bookUiBound=true;bindPermanentEditor();
+ if(bookUiBound)return;bookUiBound=true;bindPermanentEditor();bindBookNoteEditor();
  const pdfArea=els.workspace?.querySelector('.pdf-area');
  if(pdfArea&&bookEls.page)pdfArea.appendChild(bookEls.page);
  $('deleteBookPageBtn')?.addEventListener('click',()=>deleteBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.insert?.addEventListener('click',()=>insertBookPage().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.permanent?.addEventListener('click',()=>openPermanent().catch(e=>{setStatus(e.message);alert(e.message);}));
  $('permanentNoteClose')?.addEventListener('click',()=>closePermanent(true).catch(e=>alert(e.message)));
- bookEls.editor?.addEventListener('input',scheduleBookSave);
- bookEls.title?.addEventListener('change',()=>saveBookPageTitle().catch(e=>{setStatus(e.message);alert(e.message);}));
+  bookEls.title?.addEventListener('change',()=>saveBookPageTitle().catch(e=>{setStatus(e.message);alert(e.message);}));
  bookEls.title?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();bookEls.title.blur();}});
  /* Replace page navigation with continuous book navigation after the original handlers run. */
  for(const el of [els.prevPage,els.nextPage,els.pageInput]){if(el)el.replaceWith(el.cloneNode(true));}
  els.prevPage=$('prevPage');els.nextPage=$('nextPage');els.pageInput=$('pageInput');
- els.prevPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex-1);});
- els.nextPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex+1);});
+ els.prevPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex-1).catch(e=>{setStatus(e.message);alert(e.message);});});
+ els.nextPage?.addEventListener('click',()=>{if(!studentFollowActive())showBookIndex(state.bookIndex+1).catch(e=>{setStatus(e.message);alert(e.message);});});
  els.pageInput?.addEventListener('change',()=>{if(studentFollowActive()){syncBookCounter();return;}const idx=bookPageIndex(els.pageInput.value);if(idx>=0)showBookIndex(idx).catch(e=>setStatus(e.message));else{syncBookCounter();setStatus('Enter an existing page, for example 4 or 4.1.');}});
 }
 async function startContinuousBook(){

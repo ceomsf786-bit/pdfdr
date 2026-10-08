@@ -120,7 +120,20 @@
 
 <button id="exitPdfFocusBtn" class="btn exit-pdf-focus hidden" type="button" aria-label="Exit PDF Focus">← Exit PDF Focus</button>
 <div id="bookPage" class="book-page hidden">
-  <div id="bookNoteEditor" class="book-note-editor hidden"></div>
+  <div id="bookNoteTools" class="book-note-tools hidden">
+  <div id="bookNoteToolbar" class="book-note-toolbar" role="toolbar" aria-label="Note page formatting">
+   <select id="bookTextStyle" aria-label="Paragraph style"><option value="p">Normal text</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
+   <select id="bookFontSize" aria-label="Text size"><option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">Larger</option></select>
+   <button type="button" data-command="bold" aria-label="Bold"><b>B</b></button><button type="button" data-command="italic" aria-label="Italic"><i>I</i></button><button type="button" data-command="underline" aria-label="Underline"><u>U</u></button>
+   <input id="bookTextColor" type="color" value="#172033" aria-label="Text colour">
+   <button type="button" data-command="insertUnorderedList">Bullets</button><button type="button" data-command="insertOrderedList">Numbering</button>
+   <button type="button" data-command="justifyLeft">Left</button><button type="button" data-command="justifyCenter">Centre</button><button type="button" data-command="justifyRight">Right</button>
+   <button type="button" id="bookInsertTable">Insert table</button><button type="button" data-command="undo">Undo</button><button type="button" data-command="redo">Redo</button><button type="button" id="bookSave">Save</button>
+   <span id="bookSaveStatus" role="status">Saved</span>
+  </div>
+  <div class="book-note-tip">Paste tables from Word, LibreOffice or Google Docs, then edit the text in each cell.</div>
+  </div>
+  <div id="bookNoteEditor" class="book-note-editor hidden" role="textbox" aria-label="Inserted note document" aria-multiline="true"></div>
   <div id="bookImageHost" class="book-image-host hidden"></div>
 </div>
 <div id="permanentNoteModal" class="permanent-note-modal hidden" role="dialog" aria-modal="true">
