@@ -119,7 +119,7 @@ async function installBoardInteractionTools(){
    const objects=state.objects.map(o=>({id:'object:'+o.id,object:o,bounds:objectBounds(o,canvas)}));
    const images=state.images.map((img,i)=>{if(!state.placements[img.id])state.placements[img.id]=placementFor(img,i);const p=state.placements[img.id];return{id:'image:'+img.id,placement:p,boardWidth:w,boardHeight:h,bounds:{minx:p.x/w,maxx:(p.x+p.w)/w,miny:p.y/h,maxy:(p.y+p.h)/h}};});
    return [...images,...objects];
-  },remember,changed:()=>{updateImageTilePositions();drawOverlay();},save:scheduleSave,status,
+  },hitErase:hitTest,erase:hit=>{state.objects=state.objects.filter(o=>o.id!==hit.id);state.selectedObject=null;},remember,changed:()=>{updateImageTilePositions();drawOverlay();},save:scheduleSave,status,
   selection:items=>{state.selectedObject=items.length===1?items[0].object?.id||null:null;state.selectedImage=items.length===1&&items[0].placement?items[0].id.slice(6):null;drawOverlay();}
  });
 }

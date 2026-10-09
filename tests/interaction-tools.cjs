@@ -31,5 +31,17 @@ event('pointermove',.4,.4);scope='pdf:3';ctx.window.SNTInteractionTools.refresh(
 tool='select';objects[0]={id:'rect',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3};objects.splice(1);teacher.items=()=>objects.map(o=>({id:'object:'+o.id,object:o,bounds:ctx.objectBounds(o,tc)}));tc.getBoundingClientRect=()=>({left:0,top:0,width:500,height:300});
 function zoomEvent(type,x,y){event(type,x/2,y/2);}
 zoomEvent('pointerdown',.1,.1);zoomEvent('pointermove',.4,.4);zoomEvent('pointerup',.4,.4);assert.equal(selected.length,1);zoomEvent('pointerdown',.2,.2);zoomEvent('pointermove',.1,.1);zoomEvent('pointerup',.1,.1);near(objects[0].x1,.1);near(objects[0].y1,.1);near(objects[0].x2,.3);
+// Hold-right-click erases across a drag with one undo snapshot and no tool switch.
+tc.getBoundingClientRect=()=>({left:0,top:0,width:1000,height:600});
+objects.splice(0,objects.length,{id:'a',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3},{id:'b',type:'rect',x1:.5,y1:.5,x2:.6,y2:.6});
+teacher.hitErase=p=>objects.find(o=>p.x>=o.x1&&p.x<=o.x2&&p.y>=o.y1&&p.y<=o.y2);
+teacher.erase=hit=>objects.splice(objects.findIndex(o=>o.id===hit.id),1);
+tool='pen';const undoBefore=remembers,legacyBefore=originalHandlers;
+event('pointerdown',.25,.25,{button:2});event('pointermove',.55,.55,{buttons:2});event('pointerup',.55,.55,{button:2});
+assert.equal(objects.length,0);assert.equal(remembers,undoBefore+1);assert.equal(tool,'pen');assert.equal(originalHandlers,legacyBefore,'right click does not draw');assert(event('contextmenu',.2,.2).defaultPrevented);
+event('pointerdown',.25,.25,{button:2});event('pointercancel',.25,.25,{button:2});assert.equal(remembers,undoBefore+1,'empty erase has no undo snapshot');
+objects.push({id:'c',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3});tool='laser';const laserPackets=sent.length;
+event('pointerdown',.1,.1,{button:2});event('pointermove',.4,.4,{buttons:2});event('pointerup',.4,.4,{button:2});flushTimers();assert.equal(objects.length,0);assert.equal(sent.length,laserPackets,'temporary erase takes precedence over laser');
+objects.push({id:'d',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3});tool='eraser';event('pointerdown',.1,.1);event('pointermove',.4,.4);event('pointerup',.4,.4);assert.equal(objects.length,0,'left eraser also supports hold and drag');
 visible=false;ctx.window.SNTInteractionTools.refresh('teacher');
 console.log('Interactions: mixed image/drawing area selection, group movement/clamping, undo snapshot, resize at zoom, event interception, shared laser, fade expiry, duplicate filtering, page/document isolation and no laser persistence passed');

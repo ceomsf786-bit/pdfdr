@@ -54,21 +54,26 @@
         <button class="tool" data-tool="highlighter">▰<span>Highlight</span></button>
         <button class="tool" data-tool="eraser">⌫<span>Erase</span></button>
         <button class="tool" data-tool="select" title="Drag a box around items, then drag a selected item to move the group. Shift-click adds or removes an item.">⌖<span>Select area</span></button>
-        <button class="tool" data-tool="laser" title="Point for students with a trail that fades after two seconds">●<span>Laser</span></button>
+        <button id="undoBtn" class="tool">↶<span>Undo</span></button>
         <button class="tool" data-tool="text">T<span>Text</span></button>
         <button class="tool" data-tool="line">╱<span>Line</span></button>
-        <button class="tool" data-tool="arrow">➜<span>Arrow</span></button>
-        <button class="tool" data-tool="rect">□<span>Box</span></button>
-        <button class="tool" data-tool="ellipse">○<span>Circle</span></button>
         <button class="tool" data-tool="hand">✋<span>Pan</span></button>
         <div class="rail-divider"></div>
-        <label class="rail-label">Width<input id="widthInput" type="range" min="1" max="18" value="4"></label>
+        <div class="pen-width-controls" aria-label="Pencil width">
+          <label class="rail-label" for="widthInput">Width <output id="widthValue">4</output></label>
+          <button type="button" id="widthIncrease" title="Increase pencil width" aria-label="Increase pencil width">+</button>
+          <input id="widthInput" aria-label="Pencil width" type="range" min="1" max="18" value="4">
+          <button type="button" id="widthDecrease" title="Decrease pencil width" aria-label="Decrease pencil width">−</button>
+        </div>
         <label class="rail-label">Colour<input id="colorInput" type="color" value="#1f2937"></label>
         <label class="rail-label" title="Fill new boxes/circles and the selected shape"><span>Fill shape</span><input id="shapeFillToggle" type="checkbox"></label>
         <label class="rail-label">Fill colour<input id="shapeFillColor" type="color" value="#fff59d"></label>
-        <button id="undoBtn" class="tool">↶<span>Undo</span></button>
         <button id="redoBtn" class="tool">↷<span>Redo</span></button>
         <button id="deleteSelected" class="tool danger">×<span>Delete</span></button>
+        <button class="tool" data-tool="laser" title="Point for students with a trail that fades after two seconds">●<span>Laser</span></button>
+        <button class="tool" data-tool="ellipse">○<span>Circle</span></button>
+        <button class="tool" data-tool="arrow">➜<span>Arrow</span></button>
+        <button class="tool" data-tool="rect">□<span>Box</span></button>
       </aside>
         <div class="pdf-controls">
           <button id="prevPage" class="btn compact">← Prev</button>

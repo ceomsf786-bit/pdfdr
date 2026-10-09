@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<div id="pdfScroller"><div id="canvasWrap"><canvas id="overlayCanvas"></canvas></div></div><input id="widthInput" type="range" min="1" max="18" value="4"><output id="widthValue"></output><button id="widthIncrease"></button><button id="widthDecrease"></button>');
+const doc=dom.window.document,$=id=>doc.getElementById(id),state={tool:'hand',pageNo:1},els={pdfScroller:$('pdfScroller'),canvasWrap:$('canvasWrap'),widthInput:$('widthInput')};
+let captured=0;els.pdfScroller.setPointerCapture=()=>captured++;els.pdfScroller.releasePointerCapture=()=>captured--;
+const ctx={els,state,$,Event:dom.window.Event};vm.createContext(ctx);const src=fs.readFileSync(__dirname+'/../viewer.js','utf8');vm.runInContext(src.slice(src.indexOf('function bindPdfPan(){'),src.indexOf('function bindTeacher(){')),ctx);ctx.bindPdfPan();ctx.bindWidthControls();
+function e(type,x,y,extra={}){const event=new dom.window.MouseEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,...extra});Object.defineProperty(event,'pointerId',{value:7});$('overlayCanvas').dispatchEvent(event);return event;}
+let drawings=0;$('overlayCanvas').addEventListener('pointerdown',()=>drawings++);els.pdfScroller.scrollLeft=200;els.pdfScroller.scrollTop=300;
+e('pointerdown',100,100);e('pointermove',150,180);assert.equal(els.pdfScroller.scrollLeft,150);assert.equal(els.pdfScroller.scrollTop,220);assert.equal(drawings,0);assert.equal(captured,1);e('pointerup',150,180);assert.equal(captured,0);assert(!els.pdfScroller.classList.contains('panning'));e('pointermove',180,180);assert.equal(els.pdfScroller.scrollLeft,150);
+e('pointerdown',100,100);e('pointercancel',100,100);assert.equal(captured,0);
+state.tool='pen';e('pointerdown',100,100);assert.equal(drawings,1);assert.equal(captured,0);
+state.tool='hand';e('pointerdown',100,100);state.pageNo=2;e('pointermove',200,200);assert.equal(captured,0,'page changes end the gesture');
+let inputEvents=0;els.widthInput.addEventListener('input',()=>inputEvents++);$('widthIncrease').click();assert.equal(els.widthInput.value,'5');assert.equal($('widthValue').value,'5');$('widthDecrease').click();assert.equal(els.widthInput.value,'4');assert.equal(inputEvents,2,'buttons dispatch the existing selected-style event');els.widthInput.value='18';$('widthIncrease').click();assert.equal(els.widthInput.value,'18');els.widthInput.value='1';$('widthDecrease').click();assert.equal(els.widthInput.value,'1');
+const html=fs.readFileSync(__dirname+'/../teacher.html','utf8'),rail=html.slice(html.indexOf('<aside id="toolRail"'),html.indexOf('</aside>'));
+assert(rail.indexOf('id="undoBtn"')<rail.indexOf('data-tool="text"'));for(const tool of ['laser','ellipse','arrow','rect'])assert(rail.indexOf('data-tool="'+tool+'"')>rail.indexOf('id="deleteSelected"'));
+console.log('PDF pan: drag, release, cancellation, page guard, drawing isolation; width buttons: value, style events, limits; toolbar order passed');

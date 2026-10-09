@@ -50,6 +50,7 @@ async function installPdfInteractionTools(){
   visible:()=>!els.pdfScroller?.classList.contains('hidden')&&!els.workspace?.classList.contains('hidden')&&state.pdfOpen!==false,
   documentId:()=>state.doc?.id,surfaceKey:()=> 'pdf:'+state.pageNo,tool:()=>state.tool,channel:()=>state.liveReady?state.liveChannel:null,
   items:()=>state.pageObjects.map(o=>({id:'object:'+o.id,object:o,bounds:objectBounds(o,els.overlayCanvas)})),
+  hitErase:p=>hitTest(state.pageObjects,p),erase:hit=>{state.activeSurface='pdf';state.pageObjects=state.pageObjects.filter(o=>o.id!==hit.id);state.selectedId=null;},
   remember,changed:()=>{state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();},save:()=>savePageSoon(10),status:setStatus,
   selection:items=>{const o=items.length===1?items[0].object:null;state.selectedId=o?.id||null;if(typeof syncSelectedStyleControls==='function')syncSelectedStyleControls(o);drawOverlay();}
  });
@@ -1311,8 +1312,35 @@ function bindCommon(){
   bindLayout();
   bindStudentPinch();
 }
+function bindPdfPan(){
+  const scroller=els.pdfScroller;let drag=null;
+  const finish=e=>{if(!drag||drag.id!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();drag=null;scroller.classList.remove('panning');scroller.releasePointerCapture?.(e.pointerId);};
+  scroller.addEventListener('pointerdown',e=>{
+    if(state.tool!=='hand'||e.button!==0||!els.canvasWrap.contains(e.target))return;
+    e.preventDefault();e.stopImmediatePropagation();state.activeSurface='pdf';
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:scroller.scrollLeft,top:scroller.scrollTop,page:state.pageNo};
+    scroller.setPointerCapture?.(e.pointerId);scroller.classList.add('panning');
+  },true);
+  scroller.addEventListener('pointermove',e=>{
+    if(!drag||drag.id!==e.pointerId)return;
+    if(state.tool!=='hand'||drag.page!==state.pageNo){finish(e);return;}
+    e.preventDefault();e.stopImmediatePropagation();scroller.scrollLeft=drag.left-(e.clientX-drag.x);scroller.scrollTop=drag.top-(e.clientY-drag.y);
+  },true);
+  scroller.addEventListener('pointerup',finish,true);scroller.addEventListener('pointercancel',finish,true);
+  scroller.addEventListener('lostpointercapture',()=>{drag=null;scroller.classList.remove('panning');});
+}
+function bindWidthControls(){
+  const input=els.widthInput,output=$('widthValue');if(!input)return;
+  const sync=()=>{if(output)output.value=input.value;};
+  for(const [id,delta] of [['widthIncrease',1],['widthDecrease',-1]])$(id)?.addEventListener('click',()=>{
+    input.value=String(Math.max(Number(input.min),Math.min(Number(input.max),Number(input.value)+delta)));
+    input.dispatchEvent(new Event('input',{bubbles:true}));sync();
+  });
+  input.addEventListener('input',sync);sync();
+}
 function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+  bindPdfPan();bindWidthControls();
   els.overlayCanvas.addEventListener('pointerdown',pointerDown);els.overlayCanvas.addEventListener('pointermove',pointerMove);els.overlayCanvas.addEventListener('pointerup',pointerUp);els.overlayCanvas.addEventListener('pointercancel',pointerUp);
   els.galleryOverlayCanvas?.addEventListener('pointerdown',galleryPointerDown);els.galleryOverlayCanvas?.addEventListener('pointermove',galleryPointerMove);els.galleryOverlayCanvas?.addEventListener('pointerup',galleryPointerUp);els.galleryOverlayCanvas?.addEventListener('pointercancel',galleryPointerUp);els.imageStage?.addEventListener('pointerdown',galleryStagePointerDown);
   els.undoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryUndo,state.galleryRedo):applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryRedo,state.galleryUndo):applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);

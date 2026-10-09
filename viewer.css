@@ -573,3 +573,14 @@ body[data-mode=student] #workspace.pdf-hidden>.pdf-area{display:none!important}
 .book-note-tip{font-size:12px;color:#526477;padding:6px 12px}
 @media(max-width:650px){.book-note-tools .book-note-toolbar{gap:4px;padding:6px}.book-note-toolbar button,.book-note-toolbar select{font-size:12px}}
 .book-note-editor p{margin:0 0 10px}.book-note-editor h1,.book-note-editor h2,.book-note-editor h3{line-height:1.25;margin:18px 0 10px}.book-note-editor a{color:#147a5a;text-decoration:underline}
+
+/* v3.43 mouse/touch PDF panning and reachable pencil-width buttons */
+body[data-mode=teacher] .canvas-wrap.hand #overlayCanvas{pointer-events:auto;cursor:grab}
+body[data-mode=teacher] .pdf-scroller.panning{cursor:grabbing;touch-action:none}
+body[data-mode=teacher] .pdf-scroller.panning #overlayCanvas{cursor:grabbing}
+.pen-width-controls{display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:5px 0}
+.pen-width-controls .rail-label{align-items:center;font-size:.7rem}
+.pen-width-controls output{font-size:1rem;font-weight:700;color:var(--text)}
+.pen-width-controls button{flex-shrink:0;min-height:36px;border:1px solid var(--line);border-radius:7px;background:#f4f7f8;font-size:1.35rem;cursor:pointer;touch-action:manipulation}
+.pen-width-controls input[type=range]{width:100%;margin:5px 0;min-height:28px;cursor:pointer}
+body.continuous-book-ready .tool-rail-inline>.tool{flex-shrink:0}

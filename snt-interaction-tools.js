@@ -115,9 +115,19 @@ export function installInteractionTools(name, adapter) {
     const r=canvas.getBoundingClientRect();return handles.find(h=>Math.hypot((h.x-p.x)*r.width,(h.y-p.y)*r.height)<10)?.name||null;
   }
   function stop(e) { e.preventDefault();e.stopImmediatePropagation(); }
+  function erasePoint(p){
+    const hit=adapter.hitErase?.(p);if(!hit)return;
+    if(!pointer.dirty){adapter.remember();pointer.dirty=true;}
+    adapter.erase(hit);adapter.changed();adapter.save();render();
+  }
+  function contextMenu(e){if(adapter.teacher()&&adapter.visible()&&adapter.enabled())stop(e);}
   function down(e) {
     resetScope(); if(!adapter.teacher()||!adapter.visible()||!adapter.enabled())return;
-    const tool=adapter.tool();if(!['select','laser'].includes(tool)||e.button>0)return;
+    const tool=adapter.tool();
+    if(adapter.erase&&(e.button===2||(tool==='eraser'&&e.button===0))){
+      stop(e);canvas.setPointerCapture?.(e.pointerId);pointer={kind:'erase',id:e.pointerId,last:point(e),dirty:false};erasePoint(pointer.last);return;
+    }
+    if(!['select','laser'].includes(tool)||e.button>0)return;
     stop(e);const p=point(e);canvas.setPointerCapture?.(e.pointerId);
     if(tool==='laser'){stroke=sender+':'+(++strokeNumber);pointer={kind:'laser',id:e.pointerId};addLaser(p);return;}
     const list=items(), old=selectedItems(), one=old.length===1?old[0]:null, handle=resizeHandle(one,p);
@@ -135,6 +145,12 @@ export function installInteractionTools(name, adapter) {
   function move(e) {
     if(!adapter.teacher()||!adapter.visible()||!adapter.enabled())return;
     const tool=adapter.tool();
+    if(pointer?.kind==='erase'&&pointer.id===e.pointerId){
+      stop(e);const p=point(e),a=pointer.last,r=canvas.getBoundingClientRect();
+      const steps=Math.max(1,Math.ceil(Math.hypot((p.x-a.x)*r.width,(p.y-a.y)*r.height)/5));
+      for(let i=1;i<=steps;i++)erasePoint({x:a.x+(p.x-a.x)*i/steps,y:a.y+(p.y-a.y)*i/steps});
+      pointer.last=p;return;
+    }
     if(tool==='laser'){stop(e);addLaser(point(e));return;}
     if(!pointer||pointer.id!==e.pointerId)return;
     stop(e);const p=point(e);
@@ -154,7 +170,7 @@ export function installInteractionTools(name, adapter) {
       const r=canvas.getBoundingClientRect(), distance=Math.hypot((was.last.x-was.start.x)*r.width,(was.last.y-was.start.y)*r.height);
       const ids=distance<4?(was.hit?[was.hit.id]:[]):items().filter(i=>enclosed(i.bounds,marquee)).map(i=>i.id);
       marquee=null;select([...was.original,...ids]);adapter.status?.(selected.size+' items selected — drag a selected item to move them.');
-    }else if(was.kind!=='laser'){adapter.changed();adapter.save();}
+    }else if(was.kind!=='laser'&&(was.kind!=='erase'||was.dirty)){adapter.changed();adapter.save();}
     canvas.releasePointerCapture?.(e.pointerId);render();
   }
   function leave() { if(!pointer)stroke=sender+':'+(++strokeNumber); }
@@ -167,10 +183,12 @@ export function installInteractionTools(name, adapter) {
     const points=payload.points.slice(0,32).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1);
     laser.push(...points.map(p=>({x:p.x,y:p.y,at:Date.now(),stroke:payload.stroke})));laser=laser.slice(-180);render();
   }
+  canvas.addEventListener('contextmenu',contextMenu,true);
   canvas.addEventListener('pointerdown',down,true);canvas.addEventListener('pointermove',move,true);
   canvas.addEventListener('pointerup',up,true);canvas.addEventListener('pointercancel',up,true);canvas.addEventListener('pointerleave',leave);
   const observer=typeof ResizeObserver==='function'?new ResizeObserver(render):null;observer?.observe(canvas);
   const controller={canvas,receive,refresh:render,clearSelection(){select([]);},dispose(){
+    canvas.removeEventListener('contextmenu',contextMenu,true);
     canvas.removeEventListener('pointerdown',down,true);canvas.removeEventListener('pointermove',move,true);canvas.removeEventListener('pointerup',up,true);canvas.removeEventListener('pointercancel',up,true);canvas.removeEventListener('pointerleave',leave);
     observer?.disconnect();clearTimeout(timer);if(frame!==null)cancelAnimationFrame(frame);overlay.remove();
   }};
