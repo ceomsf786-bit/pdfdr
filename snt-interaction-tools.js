@@ -40,6 +40,43 @@ export function moveGroup(items, dx, dy) {
     }
   }
 }
+function resizeBounds(list){
+  const b=groupBounds(list);if(!b)return null;
+  if(b.maxx-b.minx<.005){b.minx=Math.max(0,b.minx-.005);b.maxx=Math.min(1,b.maxx+.005);}
+  if(b.maxy-b.miny<.005){b.miny=Math.max(0,b.miny-.005);b.maxy=Math.min(1,b.maxy+.005);}
+  return b;
+}
+function selectionHandles(list){
+  if(!list.length)return [];
+  const o=list.length===1?list[0].object:null;
+  if(o&&['line','arrow'].includes(o.type))return [{name:'p1',x:o.x1,y:o.y1},{name:'p2',x:o.x2,y:o.y2}];
+  const b=resizeBounds(list);
+  return [{name:'nw',x:b.minx,y:b.miny},{name:'ne',x:b.maxx,y:b.miny},{name:'sw',x:b.minx,y:b.maxy},{name:'se',x:b.maxx,y:b.maxy}];
+}
+export function resizeSelection(list,originals,b,h,p,rect){
+  const west=h.includes('w'),north=h.includes('n'),ax=west?b.maxx:b.minx,ay=north?b.maxy:b.miny;
+  const vx=(west?b.minx:b.maxx)-ax,vy=(north?b.miny:b.maxy)-ay;
+  const rw=Math.max(1,rect.width),rh=Math.max(1,rect.height);
+  let scale=((p.x-ax)*vx*rw*rw+(p.y-ay)*vy*rh*rh)/(vx*vx*rw*rw+vy*vy*rh*rh);
+  const limitX=west?ax/Math.max(.00001,-vx):(1-ax)/Math.max(.00001,vx);
+  const limitY=north?ay/Math.max(.00001,-vy):(1-ay)/Math.max(.00001,vy);
+  scale=Math.max(.02,Math.min(scale,limitX,limitY));
+  const X=x=>ax+(x-ax)*scale,Y=y=>ay+(y-ay)*scale;
+  for(const item of list){
+    const original=originals.find(i=>i.id===item.id);if(!original)continue;
+    if(item.placement){
+      const o=original.placement,p=item.placement;
+      p.x=X(o.x/item.boardWidth)*item.boardWidth;p.y=Y(o.y/item.boardHeight)*item.boardHeight;p.w=o.w*scale;p.h=o.h*scale;
+    }else{
+      const o=item.object,src=original.object;
+      if(src.points)o.points=src.points.map(p=>({...p,x:X(p.x),y:Y(p.y)}));
+      for(const k of ['x','x1','x2'])if(typeof src[k]==='number')o[k]=X(src[k]);
+      for(const k of ['y','y1','y2'])if(typeof src[k]==='number')o[k]=Y(src[k]);
+      if(typeof src.width==='number')o.width=src.width*scale;
+      if(src.type==='text')o.fontSize=Math.max(14,(src.fontSize||18)*scale);
+    }
+  }
+}
 function inBounds(p,b) { return b && p.x>=b.minx-.008 && p.x<=b.maxx+.008 && p.y>=b.miny-.008 && p.y<=b.maxy+.008; }
 function area(a,b) { return {minx:Math.min(a.x,b.x),maxx:Math.max(a.x,b.x),miny:Math.min(a.y,b.y),maxy:Math.max(a.y,b.y)}; }
 
@@ -81,6 +118,10 @@ export function installInteractionTools(name, adapter) {
       ctx.save();ctx.strokeStyle='#147a5a';ctx.fillStyle='rgba(20,122,90,.08)';ctx.lineWidth=2*ratio;ctx.setLineDash([6*ratio,4*ratio]);
       for(const b of boxes){ctx.strokeRect(b.minx*w,b.miny*h,Math.max(3*ratio,(b.maxx-b.minx)*w),Math.max(3*ratio,(b.maxy-b.miny)*h));}
       if(marquee)ctx.fillRect(marquee.minx*w,marquee.miny*h,(marquee.maxx-marquee.minx)*w,(marquee.maxy-marquee.miny)*h);
+      if(adapter.tool()==='select'){
+        ctx.setLineDash([]);ctx.fillStyle='#fff';
+        for(const handle of selectionHandles(list)){const size=10*ratio;ctx.fillRect(handle.x*w-size/2,handle.y*h-size/2,size,size);ctx.strokeRect(handle.x*w-size/2,handle.y*h-size/2,size,size);}
+      }
       ctx.restore();
     }
     const now=Date.now(); laser=laser.filter(p=>now-p.at<LASER_LIFETIME_MS);
@@ -107,12 +148,8 @@ export function installInteractionTools(name, adapter) {
     laser.push({...p,at:Date.now(),stroke});laser=laser.slice(-180);pending.push(p);pending=pending.slice(-32);
     if(timer===null)timer=setTimeout(flushLaser,40); render();
   }
-  function resizeHandle(item,p) {
-    const o=item?.object; if(!o)return null;
-    let handles=[];
-    if(['line','arrow'].includes(o.type))handles=[{name:'p1',x:o.x1,y:o.y1},{name:'p2',x:o.x2,y:o.y2}];
-    if(['rect','ellipse'].includes(o.type)){const b=item.bounds;handles=[{name:'nw',x:b.minx,y:b.miny},{name:'ne',x:b.maxx,y:b.miny},{name:'sw',x:b.minx,y:b.maxy},{name:'se',x:b.maxx,y:b.maxy}];}
-    const r=canvas.getBoundingClientRect();return handles.find(h=>Math.hypot((h.x-p.x)*r.width,(h.y-p.y)*r.height)<10)?.name||null;
+  function resizeHandle(list,p) {
+    const r=canvas.getBoundingClientRect();return selectionHandles(list).find(h=>Math.hypot((h.x-p.x)*r.width,(h.y-p.y)*r.height)<12)?.name||null;
   }
   function stop(e) { e.preventDefault();e.stopImmediatePropagation(); }
   function erasePoint(p){
@@ -130,8 +167,13 @@ export function installInteractionTools(name, adapter) {
     if(!['select','laser'].includes(tool)||e.button>0)return;
     stop(e);const p=point(e);canvas.setPointerCapture?.(e.pointerId);
     if(tool==='laser'){stroke=sender+':'+(++strokeNumber);pointer={kind:'laser',id:e.pointerId};addLaser(p);return;}
-    const list=items(), old=selectedItems(), one=old.length===1?old[0]:null, handle=resizeHandle(one,p);
-    if(handle&&!e.shiftKey){adapter.remember();pointer={kind:'resize',id:e.pointerId,item:one,handle,original:copy(one.object)};return;}
+    const list=items(), old=selectedItems(), one=old.length===1?old[0]:null, handle=resizeHandle(old,p);
+    if(handle&&!e.shiftKey){
+      adapter.remember();
+      if(one?.object&&['line','arrow','rect','ellipse'].includes(one.object.type))pointer={kind:'resize',id:e.pointerId,item:one,handle,original:copy(one.object)};
+      else pointer={kind:'scale',id:e.pointerId,handle,bounds:resizeBounds(old),originals:old.map(i=>({id:i.id,object:i.object?copy(i.object):null,placement:i.placement?copy(i.placement):null}))};
+      return;
+    }
     const objectHit=[...list].reverse().find(i=>i.object&&inBounds(p,i.bounds));
     const hit=objectHit||[...list].reverse().find(i=>inBounds(p,i.bounds));
     if(e.shiftKey&&hit){const ids=new Set(selected);ids.has(hit.id)?ids.delete(hit.id):ids.add(hit.id);select([...ids]);return;}
@@ -156,6 +198,7 @@ export function installInteractionTools(name, adapter) {
     stop(e);const p=point(e);
     if(pointer.kind==='marquee'){pointer.last=p;marquee=area(pointer.start,p);render();return;}
     if(pointer.kind==='move'){moveGroup(selectedItems(),p.x-pointer.last.x,p.y-pointer.last.y);pointer.last=p;adapter.changed();render();return;}
+    if(pointer.kind==='scale'){resizeSelection(selectedItems(),pointer.originals,pointer.bounds,pointer.handle,p,canvas.getBoundingClientRect());adapter.changed();render();return;}
     if(pointer.kind==='resize'){
       const o=pointer.item.object,h=pointer.handle,b=objectBounds(pointer.original,canvas);
       if(h==='p1'){o.x1=p.x;o.y1=p.y;}else if(h==='p2'){o.x2=p.x;o.y2=p.y;}
@@ -169,7 +212,7 @@ export function installInteractionTools(name, adapter) {
     if(was.kind==='marquee'){
       const r=canvas.getBoundingClientRect(), distance=Math.hypot((was.last.x-was.start.x)*r.width,(was.last.y-was.start.y)*r.height);
       const ids=distance<4?(was.hit?[was.hit.id]:[]):items().filter(i=>enclosed(i.bounds,marquee)).map(i=>i.id);
-      marquee=null;select([...was.original,...ids]);adapter.status?.(selected.size+' items selected — drag a selected item to move them.');
+      marquee=null;select([...was.original,...ids]);adapter.status?.(selected.size+' items selected — drag an item to move; drag a corner to resize.');
     }else if(was.kind!=='laser'&&(was.kind!=='erase'||was.dirty)){adapter.changed();adapter.save();}
     canvas.releasePointerCapture?.(e.pointerId);render();
   }

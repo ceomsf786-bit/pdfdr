@@ -764,8 +764,32 @@ function drawLiveSegment(o,a,b){ const c=els.overlayCanvas,ctx=c.getContext('2d'
 function scheduleOverlayRedraw(){ if(state.rafPending)return;state.rafPending=true;requestAnimationFrame(()=>{state.rafPending=false;drawOverlay();}); }
 function remember(){ if(!TEACHER)return;state.undo.push(clone(state.pageObjects));if(state.undo.length>70)state.undo.shift();state.redo=[]; }
 function applyHistory(from,to){ const item=from.pop();if(!item)return;to.push(clone(state.pageObjects));state.pageObjects=clone(item);state.pageCache.set(state.pageNo,clone(state.pageObjects));state.selectedId=null;drawOverlay();savePageSoon(20); }
+const drawingToolStyles={pen:{color:'#1f2937',width:4},highlighter:{color:'#fff000',width:12}};
+function loadDrawingToolStyles(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('snt-drawing-tool-styles')||'null');
+    for(const tool of ['pen','highlighter']){
+      const style=saved?.[tool];if(!style)continue;
+      if(/^#[0-9a-f]{6}$/i.test(style.color))drawingToolStyles[tool].color=style.color;
+      if(Number.isFinite(Number(style.width)))drawingToolStyles[tool].width=Math.max(1,Math.min(18,Number(style.width)));
+    }
+  }catch{}
+  restoreDrawingToolStyle(state.tool);
+}
+function restoreDrawingToolStyle(tool){
+  const style=drawingToolStyles[tool];if(!style)return;
+  if(els.colorInput)els.colorInput.value=style.color;
+  if(els.widthInput)els.widthInput.value=String(style.width);
+  if($('widthValue'))$('widthValue').value=String(style.width);
+}
+function rememberDrawingToolStyle(){
+  if(!drawingToolStyles[state.tool])return;
+  drawingToolStyles[state.tool]={color:curColor(),width:curWidth()};
+  try{localStorage.setItem('snt-drawing-tool-styles',JSON.stringify(drawingToolStyles));}catch{}
+}
 function setTool(tool){
   state.tool=tool;state.selectedId=null;window.SNTInteractionTools?.clearSelection('pdf');
+  restoreDrawingToolStyle(tool);
   if(TEACHER&&state.galleryArrange){state.galleryArrange=false;state.activeSurface='gallery';setStatus(tool==='hand'?'Hand tool: drag gallery to pan left/right/up/down.':'Draw mode: draw anywhere on the gallery, including directly over images.');}
   els.toolButtons.forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));els.canvasWrap?.classList.toggle('hand',tool==='hand');drawOverlay();drawGalleryOverlay();renderGallery();
 }
@@ -1340,7 +1364,8 @@ function bindWidthControls(){
 }
 function bindTeacher(){
   els.toolButtons.forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
-  bindPdfPan();bindWidthControls();
+  loadDrawingToolStyles();bindPdfPan();bindWidthControls();
+  els.colorInput?.addEventListener('input',rememberDrawingToolStyle);els.widthInput?.addEventListener('input',rememberDrawingToolStyle);
   els.overlayCanvas.addEventListener('pointerdown',pointerDown);els.overlayCanvas.addEventListener('pointermove',pointerMove);els.overlayCanvas.addEventListener('pointerup',pointerUp);els.overlayCanvas.addEventListener('pointercancel',pointerUp);
   els.galleryOverlayCanvas?.addEventListener('pointerdown',galleryPointerDown);els.galleryOverlayCanvas?.addEventListener('pointermove',galleryPointerMove);els.galleryOverlayCanvas?.addEventListener('pointerup',galleryPointerUp);els.galleryOverlayCanvas?.addEventListener('pointercancel',galleryPointerUp);els.imageStage?.addEventListener('pointerdown',galleryStagePointerDown);
   els.undoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryUndo,state.galleryRedo):applyHistory(state.undo,state.redo));els.redoBtn?.addEventListener('click',()=>state.activeSurface==='gallery'?applyGalleryHistory(state.galleryRedo,state.galleryUndo):applyHistory(state.redo,state.undo));els.deleteSelected?.addEventListener('click',deleteSelectedObject);

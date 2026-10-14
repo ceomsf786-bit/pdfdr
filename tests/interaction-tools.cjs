@@ -31,6 +31,21 @@ event('pointermove',.4,.4);scope='pdf:3';ctx.window.SNTInteractionTools.refresh(
 tool='select';objects[0]={id:'rect',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3};objects.splice(1);teacher.items=()=>objects.map(o=>({id:'object:'+o.id,object:o,bounds:ctx.objectBounds(o,tc)}));tc.getBoundingClientRect=()=>({left:0,top:0,width:500,height:300});
 function zoomEvent(type,x,y){event(type,x/2,y/2);}
 zoomEvent('pointerdown',.1,.1);zoomEvent('pointermove',.4,.4);zoomEvent('pointerup',.4,.4);assert.equal(selected.length,1);zoomEvent('pointerdown',.2,.2);zoomEvent('pointermove',.1,.1);zoomEvent('pointerup',.1,.1);near(objects[0].x1,.1);near(objects[0].y1,.1);near(objects[0].x2,.3);
+// Corner handles scale a mixed group from the original gesture snapshot.
+tc.getBoundingClientRect=()=>({left:0,top:0,width:1000,height:600});tool='select';scope='image-board:resize';
+objects.splice(0,objects.length,{id:'box',type:'rect',x1:.2,y1:.2,x2:.25,y2:.25,width:2},{id:'ink',type:'pen',points:[{x:.27,y:.27,pressure:.7},{x:.3,y:.3}],width:3},{id:'word',type:'text',x:.3,y:.35,text:'abc',fontSize:18});
+Object.assign(placement,{x:350,y:210,w:50,h:30});
+teacher.items=()=>[{id:'image:photo',placement,boardWidth:1000,boardHeight:600,bounds:{minx:placement.x/1000,maxx:(placement.x+placement.w)/1000,miny:placement.y/600,maxy:(placement.y+placement.h)/600}},...objects.map(o=>({id:'object:'+o.id,object:o,bounds:ctx.objectBounds(o,tc)}))];
+ctx.window.SNTInteractionTools.refresh('teacher');event('pointerdown',.1,.1);event('pointermove',.45,.45);event('pointerup',.45,.45);assert.equal(selected.length,4);
+const resizeUndo=remembers,resizeSaves=saves,resizeSnapshot=JSON.stringify({objects,placement});
+draws.length=0;ctx.window.SNTInteractionTools.refresh('teacher');assert(draws.some(d=>d.op==='fillRect'&&d.args[2]===10),'visible corner handles');
+event('pointerdown',.4,.4);event('pointermove',.5,.5);event('pointermove',.6,.6);event('pointerup',.6,.6);
+near(objects[0].x1,.2);near(objects[0].x2,.3);near(objects[1].points[0].x,.34);near(objects[1].width,6);near(objects[2].fontSize,36);near(placement.x,500);near(placement.w,100);near(placement.h,60);assert.equal(objects[1].points[0].pressure,.7);assert.equal(remembers,resizeUndo+1);assert.equal(saves,resizeSaves+1,'one save at resize completion');
+event('pointerdown',.6,.6);event('pointermove',.3,.3);event('pointerup',.3,.3);near(placement.w,25);near(objects[1].width,1.5);
+const restore=JSON.parse(resizeSnapshot);objects.splice(0,objects.length,...restore.objects);Object.assign(placement,restore.placement);ctx.window.SNTInteractionTools.refresh('teacher');near(placement.w,50);near(objects[1].width,3);
+// A single pen and a single image both resize; the rest stay unchanged.
+ctx.window.SNTInteractionTools.clearSelection('teacher');event('pointerdown',.26,.26);event('pointermove',.31,.31);event('pointerup',.31,.31);assert.deepEqual(selected,['object:ink']);event('pointerdown',.3,.3);event('pointermove',.33,.33);event('pointerup',.33,.33);near(objects[1].width,6);near(placement.w,50);
+ctx.window.SNTInteractionTools.clearSelection('teacher');event('pointerdown',.345,.345);event('pointermove',.41,.41);event('pointerup',.41,.41);assert.deepEqual(selected,['image:photo']);event('pointerdown',.4,.4);event('pointermove',.45,.45);event('pointerup',.45,.45);near(placement.w,100);near(placement.h,60);
 // Hold-right-click erases across a drag with one undo snapshot and no tool switch.
 tc.getBoundingClientRect=()=>({left:0,top:0,width:1000,height:600});
 objects.splice(0,objects.length,{id:'a',type:'rect',x1:.2,y1:.2,x2:.3,y2:.3},{id:'b',type:'rect',x1:.5,y1:.5,x2:.6,y2:.6});
