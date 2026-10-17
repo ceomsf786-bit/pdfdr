@@ -1419,6 +1419,33 @@ function bindTeacher(){
 }
 function deleteSelectedObject(){if(!state.selectedId)return;if(state.activeSurface==='gallery'&&state.galleryState){rememberGallery();state.galleryState.objects=state.galleryState.objects.filter(x=>x.id!==state.selectedId);state.selectedId=null;drawGalleryOverlay();saveGalleryStateSoon(20);}else{remember();state.pageObjects=state.pageObjects.filter(x=>x.id!==state.selectedId);state.selectedId=null;state.pageCache.set(state.pageNo,clone(state.pageObjects));drawOverlay();savePageSoon(20);}}
 
+function encryptedDownloadError(error){return error?.name==='EncryptedPDFError'||/input document.*encrypted/i.test(error?.message||'');}
+async function openEncryptedDownload(bytes){
+ const task=pdfjsLib.getDocument({data:new Uint8Array(bytes.slice(0)),password:''});
+ try{return await task.promise;}
+ catch(error){
+  await task.destroy().catch(()=>{});
+  if(error?.name==='PasswordException')throw new Error('This PDF needs an opening password. Please ask your teacher for a copy that opens without a password.');
+  throw error;
+ }
+}
+function originalStudentDownload(bytes,count){return {save:async()=>bytes,getPageCount:()=>count};}
+async function appendEncryptedDownloadPages(pdf,reader,start,count){
+ for(let k=0;k<count;k++){
+  setStatus('Preparing protected PDF page '+(k+1)+' of '+count+'…');
+  const page=await reader.getPage(start+k+1),canvas=document.createElement('canvas');
+  try{
+   const size=page.getViewport({scale:1});
+   // Keep each page sharp while limiting temporary canvas memory on phones.
+   const scale=Math.min(2,Math.sqrt(4000000/(size.width*size.height)),8192/Math.max(size.width,size.height));
+   const viewport=page.getViewport({scale});canvas.width=Math.max(1,Math.ceil(viewport.width));canvas.height=Math.max(1,Math.ceil(viewport.height));
+   await page.render({canvasContext:canvas.getContext('2d'),viewport,background:'#ffffff'}).promise;
+   const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Could not prepare a protected PDF page.')),'image/jpeg',.94));
+   const image=await pdf.embedJpg(await blob.arrayBuffer());
+   const outputPage=pdf.addPage();outputPage.setSize(size.width,size.height);outputPage.drawImage(image,{x:0,y:0,width:size.width,height:size.height});
+  }finally{canvas.width=0;canvas.height=0;page.cleanup();}
+ }
+}
 async function buildStudentDownloadPdf(){
  const {PDFDocument}=window.PDFLib;
  const manifest=await api('pdf-sources');
@@ -1431,7 +1458,18 @@ async function buildStudentDownloadPdf(){
    setStatus('Preparing PDF file '+(i+1)+' of '+manifest.sources.length+'…');
    const r=await fetch(apiUrl('pdf-source',{source:source.id,export:Date.now()}),{headers:authHeaders(),cache:'no-store'});
    if(!r.ok)throw new Error('Could not download one of the inserted or original PDFs. Please try again.');
-   const input=await PDFDocument.load(await r.arrayBuffer());
+   const bytes=await r.arrayBuffer();let input;
+   try{input=await PDFDocument.load(bytes);}
+   catch(error){
+    if(!encryptedDownloadError(error))throw error;
+    const reader=await openEncryptedDownload(bytes);
+    try{
+     if(start+count>reader.numPages)throw new Error('A PDF page range no longer matches its source file.');
+     if(manifest.sources.length===1&&start===0&&count===reader.numPages&&count===Number(manifest.page_count))return originalStudentDownload(bytes,reader.numPages);
+     await appendEncryptedDownloadPages(pdf,reader,start,count);
+    }finally{await reader.destroy();}
+    continue;
+   }
    if(start+count>input.getPageCount())throw new Error('A PDF page range no longer matches its source file.');
    const pages=await pdf.copyPages(input,Array.from({length:count},(_,k)=>start+k));pages.forEach(page=>pdf.addPage(page));
   }
@@ -1440,7 +1478,13 @@ async function buildStudentDownloadPdf(){
  }
  const r=await fetch(apiUrl('pdf',{export:Date.now()}),{headers:authHeaders(),cache:'no-store'});
  if(!r.ok)throw new Error('Could not download the PDF. Please try again.');
- return PDFDocument.load(await r.arrayBuffer());
+ const bytes=await r.arrayBuffer();
+ try{return await PDFDocument.load(bytes);}
+ catch(error){
+  if(!encryptedDownloadError(error))throw error;
+  const reader=await openEncryptedDownload(bytes);
+  try{return originalStudentDownload(bytes,reader.numPages);}finally{await reader.destroy();}
+ }
 }
 async function downloadStudentPdf(){
  if(TEACHER||!state.doc)return;

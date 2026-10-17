@@ -6,10 +6,13 @@
     "test:sessions": "node session-requests.cjs",
     "test:loader": "node loader-compatibility.cjs",
     "test:notes": "node inserted-note.cjs",
-    "test:downloads": "node student-download.cjs"
+    "test:downloads": "node student-download.cjs",
+    "test:encrypted-downloads": "node encrypted-download.cjs"
   },
   "devDependencies": {
     "jsdom": "30.1.1",
-    "pdf-lib": "1.17.1"
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "3.11.174",
+    "@napi-rs/canvas": "0.1.100"
   }
 }

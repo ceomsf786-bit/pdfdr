@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),path=require('path');const PDFLib=require('pdf-lib');
-const source=fs.readFileSync(path.join(__dirname,'../viewer.js'),'utf8'),code=source.slice(source.indexOf('async function buildStudentDownloadPdf(){'),source.indexOf('async function downloadStudentPdf(){'));
+const source=fs.readFileSync(path.join(__dirname,'../viewer.js'),'utf8'),code=source.slice(source.indexOf('function encryptedDownloadError(error)'),source.indexOf('async function downloadStudentPdf(){'));
 (async()=>{
  const base=await PDFLib.PDFDocument.create();for(const width of [501,502,503])base.addPage([width,700]);const baseBytes=await base.save();
  const added=await PDFLib.PDFDocument.create();for(const width of [601,602])added.addPage([width,700]);const addedBytes=await added.save();
