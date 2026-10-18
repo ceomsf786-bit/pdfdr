@@ -233,7 +233,7 @@ export function installInteractionTools(name, adapter) {
   const controller={canvas,receive,refresh:render,clearSelection(){select([]);},dispose(){
     canvas.removeEventListener('contextmenu',contextMenu,true);
     canvas.removeEventListener('pointerdown',down,true);canvas.removeEventListener('pointermove',move,true);canvas.removeEventListener('pointerup',up,true);canvas.removeEventListener('pointercancel',up,true);canvas.removeEventListener('pointerleave',leave);
-    observer?.disconnect();clearTimeout(timer);if(frame!==null)cancelAnimationFrame(frame);overlay.remove();
+    observer?.disconnect();clearTimeout(timer);if(frame!==null)cancelAnimationFrame(frame);overlay.remove();if(surfaces.get(name)===controller)surfaces.delete(name);
   }};
   surfaces.set(name,controller);render();return controller;
 }

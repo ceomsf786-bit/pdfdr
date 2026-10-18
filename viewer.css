@@ -584,3 +584,27 @@ body[data-mode=teacher] .pdf-scroller.panning #overlayCanvas{cursor:grabbing}
 .pen-width-controls button{flex-shrink:0;min-height:36px;border:1px solid var(--line);border-radius:7px;background:#f4f7f8;font-size:1.35rem;cursor:pointer;touch-action:manipulation}
 .pen-width-controls input[type=range]{width:100%;margin:5px 0;min-height:28px;cursor:pointer}
 body.continuous-book-ready .tool-rail-inline>.tool{flex-shrink:0}
+
+/* v3.46 optional vertically continuous reading surface */
+body.continuous-reading-mode .teacher-workspace .tool-rail-inline,
+body.continuous-reading-mode #pdfScroller,
+body.continuous-reading-mode #bookPage,
+body.continuous-reading-mode #bookPageTitle,
+body.continuous-reading-mode #deleteBookPageBtn{display:none!important}
+.continuous-reading-scroller{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y;background:#cfd5db;outline:none;scrollbar-gutter:stable}
+.continuous-reading-stack{display:flex;flex-direction:column;align-items:center;gap:20px;padding:16px 12px 60px;min-width:100%;width:max-content;box-sizing:border-box}
+.continuous-reading-page{flex:none;width:var(--reading-width,800px);background:#fff;box-shadow:0 2px 12px #0002;border-radius:6px;overflow:hidden}
+.continuous-reading-page>header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:6px 10px;background:#f5f8fa;border-bottom:1px solid #d9e1e8;font-size:14px}
+.continuous-reading-page>header strong{overflow-wrap:anywhere}
+.continuous-page-slot{position:relative;width:100%;background:#fff;min-height:80px}
+.continuous-page-slot canvas{display:block;width:100%;height:100%}
+.continuous-page-slot .continuous-page-annotations{position:absolute;inset:0;pointer-events:none}
+.continuous-note-content{padding:24px;line-height:1.65;font-size:17px;overflow-wrap:anywhere;min-height:350px}
+.continuous-note-content table{border-collapse:collapse;width:100%;margin:12px 0}
+.continuous-note-content th,.continuous-note-content td{border:1px solid #b8c3ce;padding:8px;vertical-align:top}
+.continuous-note-content th{background:#f2f5f8}
+.continuous-note-content p{margin:0 0 10px}
+.continuous-note-content a{color:#147a5a}
+.continuous-page-error{padding:20px;color:#861c13}
+#continuousViewBtn[aria-pressed=true]{background:#e5f5ef;border-color:#9fd4c3;color:#147a5a}
+@media(max-width:650px){.continuous-reading-stack{gap:12px;padding:8px 6px 40px}.continuous-note-content{padding:16px;font-size:16px}.continuous-reading-page>header{font-size:12px}}
